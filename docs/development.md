@@ -4,11 +4,13 @@
 
 | Crate | What's in it |
 |---|---|
-| `crates/terme-core` | Everything about commands, with no terminal or process handling: the line lexer, specs (`specs/*.json`), what's expected at the cursor, matching, ranking, and the keystrokes that insert a suggestion. |
+| `crates/terme-core` | Everything about commands, with no terminal or process handling: the line lexer, specs (`specs/*.json`), what's expected at the cursor, matching, ranking, the keystrokes that insert a suggestion, and reading options out of rendered man pages (`man.rs`). |
 | `crates/terme-ui` | Popup sizing, placement and drawing into cells and escape sequences. Pure; never touches a terminal. |
 | `crates/terme` | The binary: the pseudo-terminal wrapper, shell hooks (`src/hooks/`), the shadow screen, key parsing and the `App` state machine. |
 
 `App` (in `crates/terme/src/app.rs`) does no I/O: it takes keys, shell output and the time, and returns bytes for the terminal and keystrokes for the shell. `main.rs` owns the threads and the real file descriptors.
+
+The slow sources live in `crates/terme/src/sources.rs` and fill in from background threads: command names on `PATH`, one-line summaries from `apropos`, generator output, and man pages (`man -S 1:8:6 -P cat`, rendered 200 columns wide, then parsed). A command with no bundled spec gets one built from its man page the first time it's typed.
 
 ## Building and testing
 

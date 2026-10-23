@@ -101,24 +101,24 @@ impl Columns {
 }
 
 fn columns(view: &PopupView<'_>, max_inner: usize) -> Columns {
+    // The first page sets the widths: one long name further down the list
+    // shouldn't squeeze what's visible, and the box stays put while browsing.
+    let page = &view.items[..view.items.len().min(view.max_rows.max(1))];
     let mut c = Columns {
-        kind: view.items.iter().any(|i| i.kind_mark.is_some()),
-        name: view
-            .items
+        kind: page.iter().any(|i| i.kind_mark.is_some()),
+        name: page
             .iter()
             .map(|i| width_of(&i.name))
             .max()
             .unwrap_or(0)
             .min(MAX_NAME),
-        desc: view
-            .items
+        desc: page
             .iter()
             .map(|i| width_of(&i.description))
             .max()
             .unwrap_or(0)
             .min(MAX_DESC),
-        meta: view
-            .items
+        meta: page
             .iter()
             .map(|i| width_of(&i.meta))
             .max()
@@ -126,13 +126,13 @@ fn columns(view: &PopupView<'_>, max_inner: usize) -> Columns {
             .min(MAX_META),
     };
     // Too wide: give up meta, then shorten descriptions, then names, and only
-    // then drop descriptions altogether.
+    // then drop descriptions altogether: names are what the user types.
     while c.inner() > max_inner {
         if c.meta > 0 {
             c.meta = 0;
-        } else if c.desc > 10 {
+        } else if c.desc > 12 {
             c.desc -= 1;
-        } else if c.name > 20 {
+        } else if c.name > 16 {
             c.name -= 1;
         } else if c.desc > 0 {
             c.desc = 0;

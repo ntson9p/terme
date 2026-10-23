@@ -2,7 +2,7 @@
 
 IntelliSense for the terminal you already use: as you type a command, terme shows what you can type next and what it means (subcommands, flags, values, examples and warnings) right at the cursor.
 
-> **Status:** early development. Milestone M0 (a working tracer for bash and zsh on Linux) is done: the suggestion list, the keyboard model and 10 built-in command specs. Docs pane, hints, ghost text, explanations and danger warnings come next (see the [roadmap](docs/ui-ux-spec.md#18-roadmap-and-success-metrics)).
+> **Status:** early development. Milestone M0 (a working tracer for bash and zsh on Linux) is done, and the first part of M1: options and docs read from your installed man pages. Hints, ghost text, explanations and danger warnings come next (see the [roadmap](docs/ui-ux-spec.md#18-roadmap-and-success-metrics)).
 
 ```
 ~/shop $ git commit --a█
@@ -41,9 +41,19 @@ Type `exit` to leave. terme doesn't change any of your dotfiles; it loads its ho
 
 The list opens on its own when you pause for 100 ms, then follows every keystroke. The thin bar `▏` marks what Tab would insert; once you press ↓ it becomes a solid highlighted row and `↵` appears, meaning Enter now inserts.
 
-## What it knows (M0)
+## What it knows
 
-Built-in specs for `apt`, `cd`, `cp`, `docker`, `git`, `grep`, `ls`, `ssh`, `systemctl` and `tar`, plus every command on your `PATH`, files and folders, and live values such as git branches, Docker containers, systemd units and apt packages.
+- **Every command with a man page.** terme reads the installed page in the background the first time you use a command, so its options come with descriptions, and the docs pane shows the page's full text for the highlighted option. Because it's the installed page, it matches your version.
+- **Ten hand-written specs** for `apt`, `cd`, `cp`, `docker`, `git`, `grep`, `ls`, `ssh`, `systemctl` and `tar`, with subcommands and live values: git branches and changed files, Docker containers and images, systemd units, apt packages, ssh hosts.
+- **Every command on your `PATH`**, with its one-line description, plus files and folders.
+
+### Known rough edges
+
+- You start it yourself (`terme`); starting it automatically in every shell comes with `terme setup` later.
+- The first time you use a command, its options take about a second to appear while its man page is read.
+- Resizing the window while a list is open can leave marks until the next redraw.
+- bash in vi mode (`set -o vi`) isn't supported yet; zsh's vi mode is.
+- Linux only for now.
 
 ## How it works
 
