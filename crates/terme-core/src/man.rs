@@ -39,7 +39,16 @@ impl ManOption {
 #[must_use]
 pub fn short_phrase(text: &str) -> String {
     let mut end = text.len();
-    for pat in [". ", "; ", ", or ", " (", ": "] {
+    for pat in [
+        ". ",
+        "; ",
+        ", or ",
+        ", but ",
+        ", unless ",
+        ", which ",
+        " (",
+        ": ",
+    ] {
         if let Some(i) = text.find(pat) {
             end = end.min(i);
         }
@@ -130,12 +139,17 @@ pub fn parse(rendered: &str) -> ManPage {
                     .trim()
                     .to_string();
             }
-            "DESCRIPTION" if page.description.is_empty() && !line.trim().is_empty() && !line.trim().starts_with('-') => {
+            "DESCRIPTION"
+                if page.description.is_empty()
+                    && !line.trim().is_empty()
+                    && !line.trim().starts_with('-') =>
+            {
                 page.description = paragraph(&lines, i, indent(line));
             }
             _ => {}
         }
-        let lists_options = section == "DESCRIPTION" || section.contains("OPTION") || section.contains("SWITCHES");
+        let lists_options =
+            section == "DESCRIPTION" || section.contains("OPTION") || section.contains("SWITCHES");
         if lists_options && let Some((names, arg, rest)) = option_line(line) {
             let ind = indent(line);
             // Option lines stacked with no text between them share the text below.
@@ -144,7 +158,9 @@ pub fn parse(rendered: &str) -> ManPage {
             let mut first_text = rest;
             let mut j = i + 1;
             while first_text.is_empty() && j < lines.len() && indent(lines[j]) == ind {
-                let Some((more, more_arg, more_rest)) = option_line(lines[j]) else { break };
+                let Some((more, more_arg, more_rest)) = option_line(lines[j]) else {
+                    break;
+                };
                 names.extend(more);
                 arg = arg.or(more_arg);
                 first_text = more_rest;
@@ -171,7 +187,11 @@ pub fn parse(rendered: &str) -> ManPage {
                 text.push_str(l.trim());
                 j += 1;
             }
-            if !page.options.iter().any(|o| o.names.iter().any(|n| names.contains(n))) {
+            if !page
+                .options
+                .iter()
+                .any(|o| o.names.iter().any(|n| names.contains(n)))
+            {
                 page.options.push(ManOption {
                     names,
                     arg,
@@ -201,24 +221,12 @@ fn paragraph(lines: &[&str], start: usize, ind: usize) -> String {
     squash(&out)
 }
 
-/// Collapse runs of spaces and undo hyphenation at line ends.
+/// Collapse runs of spaces.
 fn squash(s: &str) -> String {
-    let joined = s.replace("- ", "-").replace("‐ ", "");
-    let mut out = String::with_capacity(joined.len());
-    let mut space = false;
-    for c in s.chars() {
-        if c == ' ' {
-            if !space {
-                out.push(c);
-            }
-            space = true;
-        } else {
-            out.push(c);
-            space = false;
-        }
-    }
-    let _ = joined;
-    out.trim().to_string()
+    s.split(' ')
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// If `line` starts an option entry, its names, value and any text on the
@@ -239,24 +247,47 @@ fn option_line(line: &str) -> Option<(Vec<String>, Option<String>, String)> {
     };
     let mut names = Vec::new();
     let mut arg = None;
-    for item in head.split(", ") {
+    let mut rest = rest.to_string();
+    let items: Vec<&str> = head.split(", ").collect();
+    for (n, item) in items.iter().enumerate() {
         let item = item.trim();
         let name_len = item
             .char_indices()
-            .find(|&(i, c)| !(c == '-' && i < 2 || c.is_ascii_alphanumeric() || (i >= 2 && matches!(c, '-' | '_' | '.'))))
+            .find(|&(i, c)| {
+                !(c == '-' && i < 2
+                    || c.is_ascii_alphanumeric()
+                    || (i >= 2 && matches!(c, '-' | '_' | '.')))
+            })
             .map_or(item.len(), |(i, _)| i);
         let name = &item[..name_len];
         let dashes = name.chars().take_while(|&c| c == '-').count();
         if dashes == 0 || dashes > 2 || name.len() <= dashes {
             return None;
         }
-        let value = item[name_len..].trim_start_matches(['=', '[', ' ']).trim_end_matches(']');
-        let value = value.trim_start_matches('=').trim_matches(['<', '>']);
-        if !value.is_empty() {
-            // Prose that happens to start with a dash is not an option.
-            if value.len() > 40 || value.split(' ').count() > 3 {
+        let after = &item[name_len..];
+        // `--color[=WHEN]`, `--file=ARCHIVE`, `-C <commit>`, `-L [bind:]port…`
+        let value = if let Some(v) = after.strip_prefix("[=") {
+            v.trim_end_matches(']')
+        } else if let Some(v) = after.strip_prefix('=') {
+            v
+        } else {
+            after.trim()
+        };
+        let value = value
+            .strip_prefix('<')
+            .and_then(|v| v.strip_suffix('>'))
+            .unwrap_or(value);
+        let prose = value.len() > 40 || value.split(' ').count() > 3;
+        if prose {
+            // GNU pages put short options' text one space after the name
+            // (`--help display this help and exit`).
+            if n + 1 == items.len() && after.starts_with(' ') && rest.is_empty() {
+                rest = value.to_string();
+            } else {
+                // Prose that happens to start with a dash is not an option.
                 return None;
             }
+        } else if !value.is_empty() {
             arg.get_or_insert_with(|| value.to_string());
         }
         names.push(name.to_string());
@@ -264,7 +295,7 @@ fn option_line(line: &str) -> Option<(Vec<String>, Option<String>, String)> {
     if names.is_empty() || names.len() > 6 {
         return None;
     }
-    Some((names, arg, rest.to_string()))
+    Some((names, arg, rest))
 }
 
 /// A spec built from a man page, for commands with no curated spec.
@@ -335,7 +366,8 @@ pub fn parse_whatis(output: &str) -> Vec<(String, String)> {
 mod tests {
     use super::*;
 
-    const SORT: &str = "SORT(1)                         User Commands                        SORT(1)
+    const SORT: &str =
+        "SORT(1)                         User Commands                        SORT(1)
 
 NAME
        sort - sort lines of text files
@@ -407,10 +439,20 @@ DESCRIPTION
     fn gnu_style() {
         let page = parse(SORT);
         assert_eq!(page.summary, "sort lines of text files");
-        assert_eq!(page.description, "Write sorted concatenation of all FILE(s) to standard output.");
+        assert_eq!(
+            page.description,
+            "Write sorted concatenation of all FILE(s) to standard output."
+        );
         assert_eq!(
             names(&page),
-            ["-b,--ignore-leading-blanks", "-f,--ignore-case", "-k,--key", "-o,--output", "-t,--field-separator", "--help"]
+            [
+                "-b,--ignore-leading-blanks",
+                "-f,--ignore-case",
+                "-k,--key",
+                "-o,--output",
+                "-t,--field-separator",
+                "--help"
+            ]
         );
         let k = &page.options[2];
         assert_eq!(k.arg.as_deref(), Some("KEYDEF"));
@@ -423,22 +465,38 @@ DESCRIPTION
         let page = parse(SSH);
         assert_eq!(page.summary, "OpenSSH remote login client");
         assert_eq!(names(&page), ["-4", "-L", "-p"]);
-        assert_eq!(page.options[0].short_description(), "forces ssh to use IPv4 addresses only");
-        assert_eq!(page.options[1].arg.as_deref(), Some("[bind_address:]port:host:hostport"));
-        assert!(page.options[1].text.starts_with("Specifies that connections"));
+        assert_eq!(
+            page.options[0].short_description(),
+            "forces ssh to use IPv4 addresses only"
+        );
+        assert_eq!(
+            page.options[1].arg.as_deref(),
+            Some("[bind_address:]port:host:hostport")
+        );
+        assert!(
+            page.options[1]
+                .text
+                .starts_with("Specifies that connections")
+        );
         assert_eq!(page.options[2].arg.as_deref(), Some("port"));
     }
 
     #[test]
     fn asciidoc_style() {
         let page = parse(GIT_COMMIT);
-        assert_eq!(names(&page), ["-a,--all", "-C,--reuse-message", "--dry-run"]);
+        assert_eq!(
+            names(&page),
+            ["-a,--all", "-C,--reuse-message", "--dry-run"]
+        );
         assert_eq!(page.options[1].arg.as_deref(), Some("commit"));
         assert_eq!(
             page.options[0].text,
             "Automatically stage files that have been modified and deleted, but new files you have not told Git about are not affected."
         );
-        assert_eq!(page.options[0].short_description(), "automatically stage files that have been modified and deleted");
+        assert_eq!(
+            page.options[0].short_description(),
+            "automatically stage files that have been modified and deleted"
+        );
     }
 
     #[test]
@@ -457,7 +515,9 @@ DESCRIPTION
 
     #[test]
     fn prose_starting_with_a_dash_is_not_an_option() {
-        let page = parse("DESCRIPTION\n       - this line is a bullet point in some page\n       -- is the end of options\n");
+        let page = parse(
+            "DESCRIPTION\n       - this line is a bullet point in some page\n       -- is the end of options\n",
+        );
         assert!(page.options.is_empty(), "{page:?}");
     }
 
@@ -467,9 +527,20 @@ DESCRIPTION
         let cmd = to_command("sort", &page);
         assert_eq!(cmd.description, "sort lines of text files");
         let o = cmd.find_option("--output").unwrap();
-        assert_eq!(o.description, "write result to FILE instead of standard output");
+        assert_eq!(
+            o.description,
+            "write result to FILE instead of standard output"
+        );
         assert_eq!(o.arg.as_ref().unwrap().template, Some(Template::Filepaths));
-        assert!(cmd.find_option("-k").unwrap().arg.as_ref().unwrap().template.is_none());
+        assert!(
+            cmd.find_option("-k")
+                .unwrap()
+                .arg
+                .as_ref()
+                .unwrap()
+                .template
+                .is_none()
+        );
     }
 
     #[test]
@@ -478,7 +549,10 @@ DESCRIPTION
                    git-commit (1)       - Record changes to the repository\n\
                    pgrep, pkill (1)     - look up processes\n";
         let pairs = parse_whatis(out);
-        assert_eq!(pairs[0], ("ls".to_string(), "list directory contents".to_string()));
+        assert_eq!(
+            pairs[0],
+            ("ls".to_string(), "list directory contents".to_string())
+        );
         assert_eq!(pairs[2].0, "pgrep");
         assert_eq!(pairs[3].0, "pkill");
     }

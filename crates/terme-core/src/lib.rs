@@ -5,6 +5,7 @@ pub mod complete;
 pub mod context;
 pub mod edit;
 pub mod lexer;
+pub mod man;
 pub mod matching;
 pub mod spec;
 

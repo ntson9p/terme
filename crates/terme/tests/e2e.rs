@@ -46,6 +46,14 @@ impl Term {
             _ => (".zshrc", "PROMPT='$ '\nRPROMPT=\nunsetopt BEEP\n"),
         };
         std::fs::write(home.path().join(rc.0), rc.1).unwrap();
+        // Ubuntu's global zshrc runs compinit, which stops to ask about
+        // "insecure directories" on CI runners; this is its documented opt-out.
+        std::fs::write(
+            home.path().join(".zshenv"),
+            "skip_global_compinit=1
+",
+        )
+        .unwrap();
         for f in ["backup.tar.gz", "notes.txt"] {
             std::fs::write(home.path().join(f), "x").unwrap();
         }
