@@ -387,3 +387,27 @@ fn exit_status_is_passed_on() {
         assert!(left.is_empty(), "[{}] leftover {left:?}", t.shell);
     });
 }
+
+fn has_man_page(name: &str) -> bool {
+    std::process::Command::new("man")
+        .args(["-w", name])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[test]
+fn commands_without_a_spec_get_options_from_their_man_page() {
+    if !has_man_page("sort") {
+        eprintln!("skipping: no man page for sort here");
+        return;
+    }
+    each_shell(|t| {
+        t.type_text("sort --ign");
+        t.wait_for("options read from sort's man page", |t| {
+            t.text().contains("--ignore-case") && t.text().contains("╭─ option")
+        });
+        t.clear_line();
+    });
+}

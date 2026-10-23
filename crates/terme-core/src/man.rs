@@ -301,10 +301,13 @@ fn option_line(line: &str) -> Option<(Vec<String>, Option<String>, String)> {
 /// A spec built from a man page, for commands with no curated spec.
 #[must_use]
 pub fn to_command(name: &str, page: &ManPage) -> Command {
+    // Keep the page's order: authors usually list the important options first.
+    let count = i32::try_from(page.options.len()).unwrap_or(i32::MAX);
     let options = page
         .options
         .iter()
-        .map(|o| Opt {
+        .zip(0..)
+        .map(|(o, i)| Opt {
             names: o.names.clone(),
             description: o.short_description(),
             arg: o.arg.as_ref().map(|a| Arg {
@@ -312,6 +315,7 @@ pub fn to_command(name: &str, page: &ManPage) -> Command {
                 template: value_template(a),
                 ..Arg::default()
             }),
+            priority: count - i,
             ..Opt::default()
         })
         .collect();
@@ -525,6 +529,8 @@ DESCRIPTION
     fn builds_a_spec() {
         let page = parse(SORT);
         let cmd = to_command("sort", &page);
+        // The page's order becomes the ranking.
+        assert!(cmd.options[0].priority > cmd.options[1].priority);
         assert_eq!(cmd.description, "sort lines of text files");
         let o = cmd.find_option("--output").unwrap();
         assert_eq!(

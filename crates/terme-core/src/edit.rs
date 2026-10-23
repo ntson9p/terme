@@ -87,6 +87,7 @@ mod tests {
             match_kind: MatchKind::Prefix,
             priority: 0,
             opens_more: false,
+            names: Vec::new(),
         }
     }
 

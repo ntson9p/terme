@@ -3,7 +3,7 @@
 use unicode_width::UnicodeWidthChar;
 
 use crate::style::{KindColor, Role, Theme};
-use crate::{Cell, Overlay};
+use crate::{Cell, DocsView, Overlay};
 
 /// One row of the list.
 #[derive(Debug, Clone, Default)]
@@ -248,8 +248,28 @@ pub fn render(
     Some(Overlay {
         top: placement.top,
         left: placement.left,
-        rows,
+        rows: rows
+            .into_iter()
+            .map(|r| r.into_iter().map(Some).collect())
+            .collect(),
     })
+}
+
+/// The list plus, when there's room beside it, the docs pane (§5.2).
+#[must_use]
+pub fn render_with_docs(
+    view: &PopupView<'_>,
+    docs: Option<&DocsView<'_>>,
+    screen: (u16, u16),
+    anchor: Anchor,
+    theme: Theme,
+) -> Option<Overlay> {
+    let list = render(view, screen, anchor, theme)?;
+    let Some(docs) = docs else {
+        return Some(list);
+    };
+    let above = list.top < anchor.word_row.min(anchor.cursor_row);
+    Some(crate::docs::attach(list, docs, screen, above, theme))
 }
 
 fn cell(ch: char, role: Role, theme: Theme) -> Cell {

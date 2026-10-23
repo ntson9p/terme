@@ -55,6 +55,8 @@ pub enum Role {
     Border,
     Label,
     Name,
+    /// Plain text, such as the docs pane's body.
+    Text,
     Match,
     Muted,
     Gutter,
@@ -105,6 +107,7 @@ impl Theme {
                 };
                 match role {
                     Role::Border | Role::Label | Role::Muted => fg(BRIGHT_BLACK),
+                    Role::Text => plain,
                     Role::Name => Style {
                         bold: true,
                         ..plain
@@ -143,7 +146,7 @@ impl Theme {
                     bold: true,
                     ..plain
                 },
-                Role::Gutter | Role::Kind(_) => plain,
+                Role::Gutter | Role::Kind(_) | Role::Text => plain,
                 Role::Selected | Role::SelectedMuted => Style {
                     reverse: true,
                     ..plain

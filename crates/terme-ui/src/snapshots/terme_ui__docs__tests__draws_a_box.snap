@@ -1,0 +1,8 @@
+---
+source: crates/terme-ui/src/docs.rs
+expression: "text.join(\"\\n\")"
+---
+╭─ --amend ────────────────────────╮
+│ Replace the tip of the current   │
+│ branch by creating a new commit. │
+╰─ man git-commit ─────────────────╯

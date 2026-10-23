@@ -191,6 +191,14 @@ impl SpecSet {
         Self { commands }
     }
 
+    /// Add a spec learned at run time (from a man page). Bundled specs win:
+    /// a command that already has one is left alone.
+    pub fn insert(&mut self, command: Command) {
+        if self.get(command.name()).is_none() {
+            self.commands.push(command);
+        }
+    }
+
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&Command> {
         self.commands

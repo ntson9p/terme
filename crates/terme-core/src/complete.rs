@@ -1,5 +1,6 @@
 //! Turns a [`Context`] into a ranked list of suggestions.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -44,6 +45,8 @@ pub struct Candidate {
     pub priority: i32,
     /// After inserting it, values are expected right away (`-f `, `src/`).
     pub opens_more: bool,
+    /// For options: every spelling, so docs can be looked up by any of them.
+    pub names: Vec<String>,
 }
 
 #[derive(Debug, Default)]
@@ -65,6 +68,8 @@ pub struct Env<'a> {
     pub home: Option<&'a Path>,
     /// Cached generator output; `None` means it hasn't run yet.
     pub generated: &'a dyn Fn(&Generator) -> Option<Arc<Vec<String>>>,
+    /// One-line descriptions of commands, from `apropos`.
+    pub summaries: &'a HashMap<String, String>,
 }
 
 /// The most entries a folder listing contributes.
@@ -118,8 +123,14 @@ fn rank(items: &mut [Candidate]) {
         a.match_kind
             .cmp(&b.match_kind)
             .then(b.priority.cmp(&a.priority))
-            .then_with(|| a.display.to_lowercase().cmp(&b.display.to_lowercase()))
+            .then_with(|| sort_key(&a.display).cmp(&sort_key(&b.display)))
     });
+}
+
+/// Alphabetical order that ignores the indent and dashes of option names, so
+/// `    --exclude` sorts by `exclude`, between `-c` and `-f`.
+fn sort_key(display: &str) -> String {
+    display.trim_start().trim_start_matches('-').to_lowercase()
 }
 
 fn commands(word: &Word, env: &Env<'_>) -> Suggestions {
@@ -182,6 +193,7 @@ fn simple(
         match_kind: m.kind,
         priority,
         opens_more: false,
+        names: Vec::new(),
     }
 }
 
@@ -330,6 +342,7 @@ fn option_candidate(
         match_kind: m.kind,
         priority: opt.priority - if opt.deprecated { 1000 } else { 0 },
         opens_more: opt.arg.is_some(),
+        names: opt.names.clone(),
     }
 }
 
@@ -424,6 +437,7 @@ fn cluster_additions(spec: &SpecContext<'_>, cluster: &str) -> Suggestions {
             match_kind: MatchKind::Prefix,
             priority: opt.priority,
             opens_more: opt.takes_value(),
+            names: opt.names.clone(),
         });
     }
     s
@@ -550,6 +564,7 @@ fn paths(word: &Word, env: &Env<'_>, template: Template, extensions: &[String]) 
                 0
             },
             opens_more: is_dir,
+            names: Vec::new(),
         });
         if out.len() >= MAX_PATHS {
             break;
@@ -724,6 +739,7 @@ mod tests {
                 cwd: &self.dir.0,
                 home: None,
                 generated,
+                summaries: &HashMap::new(),
             };
             complete(&ctx, &env)
         }
@@ -884,6 +900,7 @@ mod tests {
                 cwd: &f.dir.0,
                 home: None,
                 generated: &|_| None,
+                summaries: &HashMap::new(),
             };
             worth_showing(&ctx, &complete(&ctx, &env))
         };

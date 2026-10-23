@@ -7,11 +7,26 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use terme_core::man::{self, ManPage};
 use terme_core::spec::Generator;
+
+/// Everything outside the command line that suggestions draw on. The slow
+/// parts fill in from background threads.
+pub struct Sources {
+    /// Executables on `PATH` and builtins.
+    pub commands: Arc<OnceLock<Vec<String>>>,
+    /// One-line descriptions of commands, from `apropos`.
+    pub summaries: Arc<OnceLock<HashMap<String, String>>>,
+    pub generators: Generators,
+    pub man: ManPages,
+    /// The shell's working folder.
+    pub cwd: Box<dyn Fn() -> Option<PathBuf> + Send>,
+    pub home: Option<PathBuf>,
+}
 
 const BUILTINS: &[&str] = &[
     "alias", "bg", "builtin", "cd", "command", "declare", "dirs", "disown", "echo", "eval", "exec",
@@ -173,6 +188,172 @@ fn parse(output: &str, field: Option<usize>) -> Vec<String> {
         .take(MAX_VALUES)
         .map(String::from)
         .collect()
+}
+
+/// Rendered and parsed man pages, loaded on a worker thread.
+pub struct ManPages {
+    /// `None` inside: looked up, but there's no page.
+    cache: Arc<Mutex<HashMap<String, Option<Arc<ManPage>>>>>,
+    running: Arc<Mutex<HashSet<String>>>,
+    jobs: Sender<String>,
+}
+
+impl ManPages {
+    /// `done` is called on the worker thread whenever a page is ready.
+    pub fn new(done: impl Fn() + Send + 'static) -> Self {
+        let (jobs, rx): (Sender<String>, Receiver<String>) = channel();
+        let cache: Arc<Mutex<HashMap<String, Option<Arc<ManPage>>>>> = Arc::default();
+        let running: Arc<Mutex<HashSet<String>>> = Arc::default();
+        let (c, r) = (cache.clone(), running.clone());
+        thread::Builder::new()
+            .name("terme-man".into())
+            .spawn(move || {
+                for name in rx {
+                    let page = render_man(&name).map(|text| Arc::new(man::parse(&text)));
+                    c.lock().expect("man cache lock").insert(name.clone(), page);
+                    r.lock().expect("man running lock").remove(&name);
+                    done();
+                }
+            })
+            .expect("spawning the man page thread");
+        Self {
+            cache,
+            running,
+            jobs,
+        }
+    }
+
+    /// A store that never runs `man`: it only knows the pages given to it
+    /// (now or later with [`ManPages::add`]). For tests.
+    #[cfg(test)]
+    pub fn offline(pages: Vec<(&str, Option<ManPage>)>) -> Self {
+        let (jobs, _rx) = channel();
+        let s = Self {
+            cache: Arc::default(),
+            // Mark everything as already running so nothing is ever sent.
+            running: Arc::default(),
+            jobs,
+        };
+        for (name, page) in pages {
+            s.add(name, page);
+        }
+        s
+    }
+
+    #[cfg(test)]
+    pub fn add(&self, name: &str, page: Option<ManPage>) {
+        self.cache
+            .lock()
+            .expect("man cache lock")
+            .insert(name.to_string(), page.map(Arc::new));
+    }
+
+    /// `None` while not loaded yet; `Some(None)` if there is no page.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<Option<Arc<ManPage>>> {
+        self.cache
+            .lock()
+            .expect("man cache lock")
+            .get(name)
+            .cloned()
+    }
+
+    /// Load the page in the background unless it's loaded or loading.
+    pub fn request(&self, name: &str) {
+        if !is_page_name(name)
+            || self
+                .cache
+                .lock()
+                .expect("man cache lock")
+                .contains_key(name)
+        {
+            return;
+        }
+        if self
+            .running
+            .lock()
+            .expect("man running lock")
+            .insert(name.to_string())
+        {
+            let _ = self.jobs.send(name.to_string());
+        }
+    }
+}
+
+/// Only plain command names are looked up.
+fn is_page_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() < 100
+        && !name.starts_with('-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '+'))
+}
+
+/// The page as `man` renders it for a wide terminal, from the sections for
+/// commands (1), admin commands (8) and games (6).
+fn render_man(name: &str) -> Option<String> {
+    let child = Command::new("man")
+        .args(["-S", "1:8:6", "-P", "cat", name])
+        .env("MANWIDTH", "200")
+        .env("MANPAGER", "cat")
+        .env_remove("MAN_KEEP_FORMATTING")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let output = wait_with_timeout(child, Duration::from_secs(5))?;
+    let text = String::from_utf8_lossy(&output).into_owned();
+    (!text.trim().is_empty()).then_some(text)
+}
+
+fn wait_with_timeout(mut child: std::process::Child, timeout: Duration) -> Option<Vec<u8>> {
+    let mut stdout = child.stdout.take()?;
+    let reader = thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        buf
+    });
+    let started = Instant::now();
+    let ok = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) if started.elapsed() > timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break false;
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(5)),
+            Err(_) => break false,
+        }
+    };
+    let output = reader.join().unwrap_or_default();
+    ok.then_some(output)
+}
+
+/// One-line descriptions of every command that has a man page, from
+/// `apropos` (about half a second; run it off the main thread).
+#[must_use]
+pub fn command_summaries() -> HashMap<String, String> {
+    let child = Command::new("apropos")
+        .args(["-s", "1,8,6", "."])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn();
+    let Some(output) = child
+        .ok()
+        .and_then(|c| wait_with_timeout(c, Duration::from_secs(10)))
+    else {
+        return HashMap::new();
+    };
+    let mut map = HashMap::new();
+    for (name, summary) in man::parse_whatis(&String::from_utf8_lossy(&output)) {
+        map.entry(name)
+            .or_insert_with(|| man::short_phrase(&summary));
+    }
+    map
 }
 
 #[cfg(test)]

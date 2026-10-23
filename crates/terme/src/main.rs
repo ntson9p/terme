@@ -8,6 +8,7 @@ mod shell;
 mod sources;
 mod term;
 
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::os::unix::process::CommandExt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -178,28 +179,37 @@ fn wrap(shell: &std::path::Path, kind: ShellKind) -> Result<i32> {
             }
         })?;
 
+    // The slow sources fill in from background threads; until they do,
+    // suggestions simply have less to say.
     let commands: Arc<OnceLock<Vec<String>>> = Arc::new(OnceLock::new());
-    let fill = commands.clone();
+    let summaries: Arc<OnceLock<HashMap<String, String>>> = Arc::new(OnceLock::new());
+    let (fill_commands, fill_summaries) = (commands.clone(), summaries.clone());
     std::thread::Builder::new()
         .name("terme-path".into())
         .spawn(move || {
-            let _ = fill.set(sources::command_names());
+            let _ = fill_commands.set(sources::command_names());
+            let _ = fill_summaries.set(sources::command_summaries());
         })?;
-    let generated_tx: Sender<Event> = tx.clone();
-    let generators = sources::Generators::new(move || {
-        let _ = generated_tx.send(Event::Generated);
-    });
+    let ready = |tx: &Sender<Event>| {
+        let tx = tx.clone();
+        move || {
+            let _ = tx.send(Event::Generated);
+        }
+    };
     let pid = child.process_id();
-    let cwd = Box::new(move || pid.and_then(sources::cwd_of));
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let sources = sources::Sources {
+        commands,
+        summaries,
+        generators: sources::Generators::new(ready(&tx)),
+        man: sources::ManPages::new(ready(&tx)),
+        cwd: Box::new(move || pid.and_then(sources::cwd_of)),
+        home: std::env::var_os("HOME").map(PathBuf::from),
+    };
     let mut app = App::new(
         kind,
         (rows, cols),
         terme_core::SpecSet::builtin(),
-        commands,
-        generators,
-        cwd,
-        home,
+        sources,
         Config::default(),
     );
 

@@ -4,21 +4,22 @@
 //! the shell, the time) and queues what to send: bytes for the real terminal
 //! and keystrokes for the shell. That keeps it testable without a terminal.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+use terme_core::context::Expect;
 use terme_core::context::Word;
 use terme_core::edit;
+use terme_core::man;
 use terme_core::{Candidate, Env, Kind, SpecSet, analyze, complete, worth_showing};
-use terme_ui::{Anchor, Item, KindColor, Overlay, PopupView, Theme};
+use terme_ui::{Anchor, DocsView, Item, KindColor, Overlay, PopupView, Theme};
 
 use crate::keys::{Key, KeyEvent, KeyParser};
 use crate::osc::{Filter, Piece};
 use crate::shadow::{Mark, Shadow};
 use crate::shell::ShellKind;
-use crate::sources::Generators;
+use crate::sources::Sources;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -53,6 +54,8 @@ struct Popup {
     focused: bool,
     /// Char index of the word the suggestions are for.
     word_start: usize,
+    /// The man page that documents these items (`git-commit` for `git commit`).
+    doc_page: Option<String>,
 }
 
 pub struct App {
@@ -61,11 +64,10 @@ pub struct App {
     filter: Filter,
     keys: KeyParser,
     specs: SpecSet,
-    commands: Arc<OnceLock<Vec<String>>>,
-    home: Option<PathBuf>,
-    generators: Generators,
-    cwd: Box<dyn Fn() -> Option<PathBuf> + Send>,
+    sources: Sources,
     config: Config,
+    /// A refresh asked for a generator or man page that hasn't arrived yet.
+    waiting_for_sources: bool,
 
     /// Between a prompt's end mark and the next command start.
     at_prompt: bool,
@@ -94,15 +96,11 @@ pub struct App {
 }
 
 impl App {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         shell: ShellKind,
         size: (u16, u16),
         specs: SpecSet,
-        commands: Arc<OnceLock<Vec<String>>>,
-        generators: Generators,
-        cwd: Box<dyn Fn() -> Option<PathBuf> + Send>,
-        home: Option<PathBuf>,
+        sources: Sources,
         config: Config,
     ) -> Self {
         Self {
@@ -111,11 +109,9 @@ impl App {
             filter: Filter::default(),
             keys: KeyParser::default(),
             specs,
-            commands,
-            home,
-            generators,
-            cwd,
+            sources,
             config,
+            waiting_for_sources: false,
             at_prompt: false,
             input_start: None,
             reported: None,
@@ -473,9 +469,14 @@ impl App {
         }
     }
 
-    /// Generator output arrived: update an open (or about to open) list.
+    /// Generator output or a man page arrived: update an open list, or open
+    /// one the user was waiting on.
     pub fn on_generated(&mut self) {
-        if self.popup.is_some() && self.active() {
+        if !self.active() {
+            return;
+        }
+        let waited = std::mem::take(&mut self.waiting_for_sources);
+        if self.popup.is_some() || (waited && self.typed) {
             self.refresh(false);
             self.redraw();
         }
@@ -503,6 +504,7 @@ impl App {
             self.popup = None;
             return;
         };
+        self.learn_from_man(&line, cursor);
         let ctx = analyze(&line, cursor, &self.specs);
         if self.suppressed_word.is_some_and(|s| s != ctx.word.start) {
             self.suppressed_word = None;
@@ -511,23 +513,36 @@ impl App {
             self.popup = None;
             return;
         }
-        let cwd = (self.cwd)()
+        let cwd = (self.sources.cwd)()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(|| PathBuf::from("/"));
-        let commands: &[String] = self.commands.get().map_or(&[], Vec::as_slice);
-        let generators = &self.generators;
+        let commands: &[String] = self.sources.commands.get().map_or(&[], Vec::as_slice);
+        let empty = HashMap::new();
+        let summaries = self.sources.summaries.get().unwrap_or(&empty);
+        let generators = &self.sources.generators;
         let generated = |g: &terme_core::spec::Generator| generators.get(&cwd, g);
         let env = Env {
             specs: &self.specs,
             commands,
             cwd: &cwd,
-            home: self.home.as_deref(),
+            home: self.sources.home.as_deref(),
             generated: &generated,
+            summaries,
         };
         let suggestions = complete(&ctx, &env);
         for g in &suggestions.pending {
             generators.request(&cwd, g);
         }
+        // Options are documented in the command's man page; subcommands in
+        // their own (`git-commit`).
+        let doc_page = match &ctx.expect {
+            Expect::Spec(spec) => Some(spec.path.join("-")),
+            _ => None,
+        };
+        if let Some(page) = &doc_page {
+            self.sources.man.request(page);
+        }
+        self.waiting_for_sources |= !suggestions.pending.is_empty();
         let show = !suggestions.items.is_empty() && (force || worth_showing(&ctx, &suggestions));
         if !show {
             self.popup = None;
@@ -550,7 +565,48 @@ impl App {
             selected,
             focused,
             word_start: ctx.word.start,
+            doc_page,
         });
+    }
+
+    /// For a command with no bundled spec, use its man page as one, loading
+    /// it in the background the first time.
+    fn learn_from_man(&mut self, line: &str, cursor: usize) {
+        let command = match analyze(line, cursor, &self.specs).expect {
+            Expect::Unknown { command } => command,
+            _ => return,
+        };
+        match self.sources.man.get(&command) {
+            Some(Some(page)) => self.specs.insert(man::to_command(&command, &page)),
+            Some(None) => {}
+            None => {
+                self.sources.man.request(&command);
+                self.waiting_for_sources = true;
+            }
+        }
+    }
+
+    /// Docs for the highlighted item, when the man page says more than the
+    /// list's one-liner.
+    fn docs_for(&self, popup: &Popup) -> Option<(String, String, String)> {
+        let item = popup.items.get(popup.selected)?;
+        if item.names.is_empty() {
+            return None;
+        }
+        let name = popup.doc_page.as_ref()?;
+        let page = self.sources.man.get(name)??;
+        let option = page
+            .options
+            .iter()
+            .find(|o| o.names.iter().any(|n| item.names.contains(n)))?;
+        if option.text.len() < item.description.len() + 12 {
+            return None;
+        }
+        Some((
+            item.names.join(", "),
+            option.text.clone(),
+            format!("man {name}"),
+        ))
     }
 
     fn close_popup(&mut self) {
@@ -609,7 +665,19 @@ impl App {
             focused: popup.focused,
             max_rows: self.config.max_rows,
         };
-        terme_ui::render(&view, self.shadow.size(), anchor, self.config.theme)
+        let docs = self.docs_for(popup);
+        let docs_view = docs.as_ref().map(|(title, text, source)| DocsView {
+            title,
+            text,
+            source,
+        });
+        terme_ui::render_with_docs(
+            &view,
+            docs_view.as_ref(),
+            self.shadow.size(),
+            anchor,
+            self.config.theme,
+        )
     }
 }
 
@@ -655,6 +723,8 @@ fn to_item(c: &Candidate, show_kinds: bool) -> Item {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, OnceLock};
+
     use super::*;
 
     const PROMPT: &[u8] = b"\x1b]133;A\x07$ \x1b]133;B\x07";
@@ -675,14 +745,19 @@ mod tests {
         fn new(shell: ShellKind) -> Self {
             let commands = Arc::new(OnceLock::new());
             let _ = commands.set(vec!["git".to_string(), "grep".to_string()]);
+            let sources = Sources {
+                commands,
+                summaries: Arc::new(OnceLock::new()),
+                generators: crate::sources::Generators::new(|| {}),
+                man: crate::sources::ManPages::offline(man_pages()),
+                cwd: Box::new(|| Some(std::env::temp_dir())),
+                home: None,
+            };
             let app = App::new(
                 shell,
                 (24, 80),
                 SpecSet::builtin(),
-                commands,
-                Generators::new(|| {}),
-                Box::new(|| Some(std::env::temp_dir())),
-                None,
+                sources,
                 Config::default(),
             );
             let mut s = Self {
@@ -976,5 +1051,108 @@ mod tests {
         assert_eq!(s.sent, b"f ");
         // The value list opens as soon as the shell echoes, without the pause.
         assert!(s.screen.screen().contents().contains("archive to read") || !s.popup_visible());
+    }
+
+    const SORT_MAN: &str = "NAME
+       sort - sort lines of text files
+
+DESCRIPTION
+       Write sorted concatenation of all FILE(s) to standard output.
+
+       -b, --ignore-leading-blanks
+              ignore leading blanks
+
+       -f, --ignore-case
+              fold lower case to upper case characters
+
+       -r, --reverse
+              reverse the result of comparisons
+";
+
+    const TAR_MAN: &str = "NAME
+       tar - an archiving utility
+
+OPTIONS
+       -x, --extract, --get
+              Extract files from an archive.  Arguments are optional.  When given, they specify names of the archive members to be extracted.
+";
+
+    fn man_pages() -> Vec<(&'static str, Option<man::ManPage>)> {
+        vec![
+            ("sort", Some(man::parse(SORT_MAN))),
+            ("tar", Some(man::parse(TAR_MAN))),
+            ("nodocs", None),
+        ]
+    }
+
+    #[test]
+    fn commands_without_a_spec_learn_from_their_man_page() {
+        let mut s = Session::bash();
+        s.type_keys(b"sort -");
+        s.wait(200);
+        let text = s.screen.screen().contents();
+        assert!(text.contains("-f, --ignore-case"), "{text}");
+        // 80 columns: descriptions are cut to fit.
+        assert!(text.contains("fold lower cas"), "{text}");
+        // Ranked in the page's order.
+        assert!(
+            s.row(2).contains("-b, --ignore-leading-blanks"),
+            "{}",
+            s.row(2)
+        );
+    }
+
+    #[test]
+    fn docs_pane_shows_the_man_text() {
+        let mut s = Session::bash();
+        s.type_keys(b"tar -");
+        s.wait(200);
+        let text = s.screen.screen().contents();
+        // 80 columns: no room beside the list, so the docs go inside it.
+        assert!(text.contains("├──"), "{text}");
+        assert!(text.contains("Extract files from an archive."), "{text}");
+        assert!(text.contains("╰─ man tar ─"), "{text}");
+        // Moving to an item the page doesn't say more about hides it.
+        s.type_keys(b"\x1b[B\x1b[B");
+        assert!(!s.screen.screen().contents().contains("Extract files"));
+    }
+
+    #[test]
+    fn docs_pane_sits_beside_the_list_when_it_fits() {
+        let mut s = Session::bash();
+        s.app.on_resize(30, 140);
+        s.screen
+            .set_size(30.try_into().unwrap(), 140.try_into().unwrap());
+        s.output(b"\r\n");
+        s.output(PROMPT);
+        s.type_keys(b"tar -");
+        s.wait(200);
+        let text = s.screen.screen().contents();
+        assert!(text.contains("╭─ -x, --extract, --get"), "{text}");
+        assert!(
+            text.contains("the archive members to be extracted."),
+            "{text}"
+        );
+        assert!(text.contains("╰─ man tar ─"), "{text}");
+    }
+
+    #[test]
+    fn list_opens_when_a_slow_man_page_arrives() {
+        let mut s = Session::bash();
+        s.type_keys(b"late -");
+        s.wait(200);
+        assert!(!s.popup_visible(), "nothing to show yet");
+        s.app.sources.man.add("late", Some(man::parse(SORT_MAN)));
+        s.app.on_generated();
+        s.pump();
+        assert!(s.popup_visible(), "{}", s.screen.screen().contents());
+    }
+
+    #[test]
+    fn no_man_page_means_no_list() {
+        let mut s = Session::bash();
+        s.type_keys(b"nodocs -");
+        s.wait(200);
+        assert!(!s.popup_visible());
     }
 }
