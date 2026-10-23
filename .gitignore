@@ -3,3 +3,6 @@
 *.pending-snap
 *.snap.new
 .DS_Store
+
+# Screenshots and notes from manual checks (docs/manual-checks.md)
+/feedback/
