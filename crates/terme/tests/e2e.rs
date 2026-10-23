@@ -142,10 +142,14 @@ impl Term {
             }
             std::thread::sleep(Duration::from_millis(10));
         }
+        let raw = self.raw.lock().unwrap();
+        let tail = &raw[raw.len().saturating_sub(1500)..];
         panic!(
-            "[{}] timed out waiting for {what}. Screen:\n{}",
+            "[{}] timed out waiting for {what}. Screen:\n{}\nLast bytes from terme ({} in all):\n{}",
             self.shell,
-            self.text()
+            self.text(),
+            raw.len(),
+            String::from_utf8_lossy(tail).escape_debug()
         );
     }
 
