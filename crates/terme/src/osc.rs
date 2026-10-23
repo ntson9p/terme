@@ -63,7 +63,10 @@ impl Filter {
                 State::Number(mut digits) => {
                     if b == b';' && digits == PRIVATE {
                         State::Payload(Vec::new())
-                    } else if b.is_ascii_digit() && digits.len() < PRIVATE.len() && PRIVATE.starts_with(&[&digits[..], &[b]].concat()) {
+                    } else if b.is_ascii_digit()
+                        && digits.len() < PRIVATE.len()
+                        && PRIVATE.starts_with(&[&digits[..], &[b]].concat())
+                    {
                         digits.push(b);
                         State::Number(digits)
                     } else {

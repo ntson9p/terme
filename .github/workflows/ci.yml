@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two Ubuntu releases: bash 5.2 / zsh 5.9 and bash 5.1 / zsh 5.8.
+        os: [ubuntu-24.04, ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zsh (the end-to-end tests run bash and zsh)
+        run: sudo apt-get update && sudo apt-get install -y zsh
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Latency budget (p99 under 16 ms per keystroke)
+        run: cargo test --release -p terme --bin terme -- --ignored latency --nocapture

@@ -71,7 +71,9 @@ fn run() -> Result<i32> {
                 println!("terme {}", env!("CARGO_PKG_VERSION"));
                 return Ok(0);
             }
-            "--shell" => shell_flag = Some(PathBuf::from(args.next().context("--shell needs a path")?)),
+            "--shell" => {
+                shell_flag = Some(PathBuf::from(args.next().context("--shell needs a path")?))
+            }
             "init" => {
                 match args.next().as_deref() {
                     Some("bash") => print!("{}", shell::BASH_HOOKS),
@@ -87,10 +89,15 @@ fn run() -> Result<i32> {
     let shell = shell::choose(shell_flag);
     let kind = ShellKind::detect(&shell);
     let tty = term_name();
-    let nested = tty.is_some() && std::env::var_os("TERME_TTY").as_deref() == tty.as_deref().map(std::ffi::OsStr::new);
-    if std::env::var("TERME").as_deref() == Ok("off") || !term::is_tty() || nested || kind.is_none() {
+    let nested = tty.is_some()
+        && std::env::var_os("TERME_TTY").as_deref() == tty.as_deref().map(std::ffi::OsStr::new);
+    if std::env::var("TERME").as_deref() == Ok("off") || !term::is_tty() || nested || kind.is_none()
+    {
         if kind.is_none() {
-            eprintln!("terme: {} isn't supported yet; starting it without suggestions", shell.display());
+            eprintln!(
+                "terme: {} isn't supported yet; starting it without suggestions",
+                shell.display()
+            );
         }
         // Nothing to add: become the shell.
         let err = std::process::Command::new(&shell).exec();
@@ -100,7 +107,9 @@ fn run() -> Result<i32> {
 }
 
 fn term_name() -> Option<String> {
-    std::fs::read_link("/proc/self/fd/0").ok().map(|p| p.display().to_string())
+    std::fs::read_link("/proc/self/fd/0")
+        .ok()
+        .map(|p| p.display().to_string())
 }
 
 fn wrap(shell: &std::path::Path, kind: ShellKind) -> Result<i32> {
@@ -129,28 +138,53 @@ fn wrap(shell: &std::path::Path, kind: ShellKind) -> Result<i32> {
     drop(pair.slave);
 
     let (tx, rx) = channel::<Event>();
-    let mut reader = pair.master.try_clone_reader().map_err(|e| anyhow::anyhow!("{e}"))?;
-    let mut writer = pair.master.take_writer().map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let master = pair.master;
 
-    spawn_reader("terme-pty", tx.clone(), move |buf| reader.read(buf), Event::Output);
-    spawn_reader("terme-stdin", tx.clone(), |buf| std::io::stdin().read(buf), Event::Input);
+    spawn_reader(
+        "terme-pty",
+        tx.clone(),
+        move |buf| reader.read(buf),
+        Event::Output,
+    );
+    spawn_reader(
+        "terme-stdin",
+        tx.clone(),
+        |buf| std::io::stdin().read(buf),
+        Event::Input,
+    );
     let signal_tx = tx.clone();
-    let mut signals = Signals::new([SIGWINCH, SIGTERM, SIGHUP]).context("installing signal handlers")?;
-    std::thread::Builder::new().name("terme-signals".into()).spawn(move || {
-        for sig in signals.forever() {
-            let event = if sig == SIGWINCH { Event::Resize } else { Event::Closed };
-            if signal_tx.send(event).is_err() {
-                break;
+    let mut signals =
+        Signals::new([SIGWINCH, SIGTERM, SIGHUP]).context("installing signal handlers")?;
+    std::thread::Builder::new()
+        .name("terme-signals".into())
+        .spawn(move || {
+            for sig in signals.forever() {
+                let event = if sig == SIGWINCH {
+                    Event::Resize
+                } else {
+                    Event::Closed
+                };
+                if signal_tx.send(event).is_err() {
+                    break;
+                }
             }
-        }
-    })?;
+        })?;
 
     let commands: Arc<OnceLock<Vec<String>>> = Arc::new(OnceLock::new());
     let fill = commands.clone();
-    std::thread::Builder::new().name("terme-path".into()).spawn(move || {
-        let _ = fill.set(sources::command_names());
-    })?;
+    std::thread::Builder::new()
+        .name("terme-path".into())
+        .spawn(move || {
+            let _ = fill.set(sources::command_names());
+        })?;
     let generated_tx: Sender<Event> = tx.clone();
     let generators = sources::Generators::new(move || {
         let _ = generated_tx.send(Event::Generated);
@@ -175,9 +209,9 @@ fn wrap(shell: &std::path::Path, kind: ShellKind) -> Result<i32> {
     let mut passthrough = false;
 
     loop {
-        let timeout = app
-            .next_deadline()
-            .map_or(Duration::from_secs(3600), |d| d.saturating_duration_since(Instant::now()));
+        let timeout = app.next_deadline().map_or(Duration::from_secs(3600), |d| {
+            d.saturating_duration_since(Instant::now())
+        });
         let event = match rx.recv_timeout(timeout) {
             Ok(event) => Some(event),
             Err(RecvTimeoutError::Timeout) => None,
@@ -220,7 +254,9 @@ fn wrap(shell: &std::path::Path, kind: ShellKind) -> Result<i32> {
             Err(_) => {
                 // Never take the shell down with us: keep relaying bytes.
                 passthrough = true;
-                stdout.write_all(b"\x1b[0m\r\nterme: suggestions paused after an internal error\r\n")?;
+                stdout.write_all(
+                    b"\x1b[0m\r\nterme: suggestions paused after an internal error\r\n",
+                )?;
             }
         }
         writer.flush()?;
@@ -252,22 +288,24 @@ fn spawn_reader(
     mut read: impl FnMut(&mut [u8]) -> std::io::Result<usize> + Send + 'static,
     wrap: fn(Vec<u8>) -> Event,
 ) {
-    let _ = std::thread::Builder::new().name(name.into()).spawn(move || {
-        let mut buf = vec![0u8; 64 * 1024];
-        loop {
-            match read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if tx.send(wrap(buf[..n].to_vec())).is_err() {
-                        return;
+    let _ = std::thread::Builder::new()
+        .name(name.into())
+        .spawn(move || {
+            let mut buf = vec![0u8; 64 * 1024];
+            loop {
+                match read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if tx.send(wrap(buf[..n].to_vec())).is_err() {
+                            return;
+                        }
                     }
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => break,
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                Err(_) => break,
             }
-        }
-        let _ = tx.send(Event::Closed);
-    });
+            let _ = tx.send(Event::Closed);
+        });
 }
 
 /// Panics are caught in the main loop; this keeps them off the screen and
@@ -280,7 +318,10 @@ fn install_panic_hook() {
             .map(|d| d.join("terme"));
         if let Some(dir) = dir {
             let _ = std::fs::create_dir_all(&dir);
-            let _ = std::fs::write(dir.join("crash.log"), format!("{info}\n{}", std::backtrace::Backtrace::force_capture()));
+            let _ = std::fs::write(
+                dir.join("crash.log"),
+                format!("{info}\n{}", std::backtrace::Backtrace::force_capture()),
+            );
         }
     }));
 }

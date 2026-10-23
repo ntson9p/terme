@@ -62,7 +62,10 @@ impl KeyParser {
                     Some(at) => {
                         let end = i + at + PASTE_END.len();
                         match out.last_mut() {
-                            Some(KeyEvent { key: Key::Paste, raw }) => raw.extend_from_slice(&self.pending[i..end]),
+                            Some(KeyEvent {
+                                key: Key::Paste,
+                                raw,
+                            }) => raw.extend_from_slice(&self.pending[i..end]),
                             _ => out.push(KeyEvent {
                                 key: Key::Paste,
                                 raw: self.pending[i..end].to_vec(),
@@ -79,7 +82,10 @@ impl KeyParser {
                         let cut = self.pending.len() - keep;
                         if cut > i {
                             match out.last_mut() {
-                                Some(KeyEvent { key: Key::Paste, raw }) => raw.extend_from_slice(&self.pending[i..cut]),
+                                Some(KeyEvent {
+                                    key: Key::Paste,
+                                    raw,
+                                }) => raw.extend_from_slice(&self.pending[i..cut]),
                                 _ => out.push(KeyEvent {
                                     key: Key::Paste,
                                     raw: self.pending[i..cut].to_vec(),
@@ -99,7 +105,10 @@ impl KeyParser {
                     let raw = self.pending[i..i + len].to_vec();
                     if raw.starts_with(b"\x1b[200~") {
                         self.in_paste = true;
-                        out.push(KeyEvent { key: Key::Paste, raw });
+                        out.push(KeyEvent {
+                            key: Key::Paste,
+                            raw,
+                        });
                     } else {
                         out.push(KeyEvent { key, raw });
                     }
@@ -125,7 +134,10 @@ impl KeyParser {
             return Vec::new();
         }
         if self.in_paste {
-            return vec![KeyEvent { key: Key::Paste, raw }];
+            return vec![KeyEvent {
+                key: Key::Paste,
+                raw,
+            }];
         }
         let key = if raw == b"\x1b" { Key::Esc } else { Key::Other };
         vec![KeyEvent { key, raw }]
@@ -145,7 +157,11 @@ fn parse_one(b: &[u8]) -> Step {
         0x7f | 0x08 => Step::Key(Key::Backspace, 1),
         c @ 0x01..=0x1a => Step::Key(Key::Ctrl(char::from(b'a' + c - 1)), 1),
         c if c < 0x80 => Step::Key(
-            if c >= 0x20 { Key::Char(char::from(c)) } else { Key::Other },
+            if c >= 0x20 {
+                Key::Char(char::from(c))
+            } else {
+                Key::Other
+            },
             1,
         ),
         c => {
@@ -158,7 +174,10 @@ fn parse_one(b: &[u8]) -> Step {
             if b.len() < len {
                 return Step::Incomplete;
             }
-            match std::str::from_utf8(&b[..len]).ok().and_then(|s| s.chars().next()) {
+            match std::str::from_utf8(&b[..len])
+                .ok()
+                .and_then(|s| s.chars().next())
+            {
                 Some(ch) => Step::Key(Key::Char(ch), len),
                 None => Step::Key(Key::Other, 1),
             }
@@ -196,7 +215,11 @@ fn parse_escape(b: &[u8]) -> Step {
 fn parse_csi(b: &[u8]) -> Step {
     // ESC [ params... final, where final is 0x40..=0x7e.
     let Some(end) = b[2..].iter().position(|&c| (0x40..=0x7e).contains(&c)) else {
-        return if b.len() > 32 { Step::Key(Key::Other, b.len()) } else { Step::Incomplete };
+        return if b.len() > 32 {
+            Step::Key(Key::Other, b.len())
+        } else {
+            Step::Incomplete
+        };
     };
     let len = 2 + end + 1;
     let params = &b[2..2 + end];
@@ -231,14 +254,24 @@ mod tests {
         let mut p = KeyParser::default();
         assert_eq!(
             keys(&mut p, b"a\t\r\x7f\x00\x03"),
-            [Key::Char('a'), Key::Tab, Key::Enter, Key::Backspace, Key::CtrlSpace, Key::Ctrl('c')]
+            [
+                Key::Char('a'),
+                Key::Tab,
+                Key::Enter,
+                Key::Backspace,
+                Key::CtrlSpace,
+                Key::Ctrl('c')
+            ]
         );
     }
 
     #[test]
     fn arrows_in_both_modes() {
         let mut p = KeyParser::default();
-        assert_eq!(keys(&mut p, b"\x1b[A\x1bOB\x1b[1;3A\x1b[6~"), [Key::Up, Key::Down, Key::AltUp, Key::PageDown]);
+        assert_eq!(
+            keys(&mut p, b"\x1b[A\x1bOB\x1b[1;3A\x1b[6~"),
+            [Key::Up, Key::Down, Key::AltUp, Key::PageDown]
+        );
     }
 
     #[test]
@@ -247,7 +280,10 @@ mod tests {
         assert_eq!(keys(&mut p, b"\x1bh"), [Key::Alt('h')]);
         assert!(keys(&mut p, b"\x1b").is_empty());
         assert!(p.has_pending());
-        assert_eq!(p.flush().into_iter().map(|e| e.key).collect::<Vec<_>>(), [Key::Esc]);
+        assert_eq!(
+            p.flush().into_iter().map(|e| e.key).collect::<Vec<_>>(),
+            [Key::Esc]
+        );
     }
 
     #[test]

@@ -126,7 +126,11 @@ impl Shadow {
             if cell.is_wide_continuation() {
                 continue;
             }
-            let text = if cell.has_contents() { cell.contents() } else { " " };
+            let text = if cell.has_contents() {
+                cell.contents()
+            } else {
+                " "
+            };
             if at_or_after_cursor {
                 after.push_str(text);
             } else {
@@ -158,7 +162,10 @@ impl Shadow {
             row += 1;
             col = 0;
         }
-        (u16::try_from(row).unwrap_or(u16::MAX), u16::try_from(col).unwrap_or(u16::MAX))
+        (
+            u16::try_from(row).unwrap_or(u16::MAX),
+            u16::try_from(col).unwrap_or(u16::MAX),
+        )
     }
 
     /// Bytes that redraw the cells of a rectangle from this screen, then put
@@ -171,14 +178,20 @@ impl Shadow {
         for row in top..(top + height).min(rows) {
             // Start on a whole character if the rectangle cuts a wide one.
             let mut col = left.min(cols);
-            if col > 0 && screen.cell(row, col).is_some_and(vt100::Cell::is_wide_continuation) {
+            if col > 0
+                && screen
+                    .cell(row, col)
+                    .is_some_and(vt100::Cell::is_wide_continuation)
+            {
                 col -= 1;
             }
             out.push_str(&format!("\x1b[{};{}H", row + 1, col + 1));
             let end = (left + width).min(cols);
             let mut last_style = String::new();
             while col < end {
-                let Some(cell) = screen.cell(row, col) else { break };
+                let Some(cell) = screen.cell(row, col) else {
+                    break;
+                };
                 let style = sgr_of(cell);
                 if style != last_style {
                     out.push_str(&style);
@@ -213,7 +226,11 @@ impl Shadow {
     pub fn cursor_and_style(&self) -> String {
         let screen = self.screen();
         let (row, col) = screen.cursor_position();
-        let visibility = if screen.hide_cursor() { "\x1b[?25l" } else { "\x1b[?25h" };
+        let visibility = if screen.hide_cursor() {
+            "\x1b[?25l"
+        } else {
+            "\x1b[?25h"
+        };
         format!(
             "\x1b[0m{}\x1b[{};{}H{visibility}",
             screen.attributes_formatted(),
@@ -263,7 +280,10 @@ mod tests {
     fn records_prompt_marks_with_positions() {
         let mut s = Shadow::new(10, 40);
         s.process(b"out\r\n\x1b]133;A\x07$ \x1b]133;B\x07ls");
-        assert_eq!(s.take_marks(), [Mark::PromptStart, Mark::InputStart { row: 1, col: 2 }]);
+        assert_eq!(
+            s.take_marks(),
+            [Mark::PromptStart, Mark::InputStart { row: 1, col: 2 }]
+        );
     }
 
     #[test]
@@ -289,7 +309,10 @@ mod tests {
         let mut s = Shadow::new(5, 20);
         s.process(b"\x1b[31mred\x1b[0m plain\r\n$ ");
         let bytes = String::from_utf8(s.restore(0, 0, 1, 9)).unwrap();
-        assert!(bytes.starts_with("\x1b[1;1H\x1b[0;31mred\x1b[0m plain"), "{bytes:?}");
+        assert!(
+            bytes.starts_with("\x1b[1;1H\x1b[0;31mred\x1b[0m plain"),
+            "{bytes:?}"
+        );
         assert!(bytes.ends_with("\x1b[2;3H\x1b[?25h"), "{bytes:?}");
         // Replaying the restore over a scribbled copy gives the same screen.
         let mut copy = Shadow::new(5, 20);

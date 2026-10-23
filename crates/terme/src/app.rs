@@ -214,7 +214,9 @@ impl App {
                     self.typed = false;
                 }
                 Mark::Scrolled => {
-                    self.input_start = self.input_start.and_then(|(r, c)| Some((r.checked_sub(1)?, c)));
+                    self.input_start = self
+                        .input_start
+                        .and_then(|(r, c)| Some((r.checked_sub(1)?, c)));
                 }
                 Mark::PromptStart | Mark::CommandDone => {}
             }
@@ -282,7 +284,8 @@ impl App {
 
     fn on_key(&mut self, event: KeyEvent, now: Instant) {
         // Keep keys in order behind any that wait for the shell's echo.
-        if !self.deferred.is_empty() || (self.awaiting_echo.is_some() && self.active() && self.needs_fresh_line(event.key))
+        if !self.deferred.is_empty()
+            || (self.awaiting_echo.is_some() && self.active() && self.needs_fresh_line(event.key))
         {
             self.deferred.push_back(event);
             return;
@@ -326,7 +329,9 @@ impl App {
                 self.accept(selected, now);
             }
             Key::Tab => {
-                let suppressed = self.current_word().is_some_and(|w| self.suppressed_word == Some(w.start));
+                let suppressed = self
+                    .current_word()
+                    .is_some_and(|w| self.suppressed_word == Some(w.start));
                 if !suppressed {
                     self.refresh(true);
                 }
@@ -392,7 +397,12 @@ impl App {
                 let typing = matches!(key, Key::Char(_) | Key::Backspace | Key::Ctrl('w' | 'h'));
                 let moving = matches!(
                     key,
-                    Key::Left | Key::Right | Key::Home | Key::End | Key::Ctrl('a' | 'e' | 'b' | 'f') | Key::Alt('b' | 'f')
+                    Key::Left
+                        | Key::Right
+                        | Key::Home
+                        | Key::End
+                        | Key::Ctrl('a' | 'e' | 'b' | 'f')
+                        | Key::Alt('b' | 'f')
                 );
                 if let Some(p) = &mut self.popup {
                     p.focused = false;
@@ -414,10 +424,16 @@ impl App {
     }
 
     fn accept(&mut self, index: usize, now: Instant) {
-        let Some(candidate) = self.popup.as_ref().and_then(|p| p.items.get(index).cloned()) else {
+        let Some(candidate) = self
+            .popup
+            .as_ref()
+            .and_then(|p| p.items.get(index).cloned())
+        else {
             return;
         };
-        let Some((line, cursor)) = self.line() else { return };
+        let Some((line, cursor)) = self.line() else {
+            return;
+        };
         let word = analyze(&line, cursor, &self.specs).word;
         let plan = edit::plan(&line, &word, cursor, &candidate);
         self.close_popup();
@@ -495,7 +511,9 @@ impl App {
             self.popup = None;
             return;
         }
-        let cwd = (self.cwd)().or_else(|| std::env::current_dir().ok()).unwrap_or_else(|| PathBuf::from("/"));
+        let cwd = (self.cwd)()
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("/"));
         let commands: &[String] = self.commands.get().map_or(&[], Vec::as_slice);
         let generators = &self.generators;
         let generated = |g: &terme_core::spec::Generator| generators.get(&cwd, g);
@@ -543,7 +561,9 @@ impl App {
 
     fn erase_overlay(&mut self) {
         if let Some(old) = self.drawn.take() {
-            let bytes = self.shadow.restore(old.top, old.left, old.height(), old.width());
+            let bytes = self
+                .shadow
+                .restore(old.top, old.left, old.height(), old.width());
             self.to_terminal.extend_from_slice(&bytes);
         }
     }
@@ -562,7 +582,8 @@ impl App {
         if let Some(overlay) = overlay {
             self.to_terminal.extend_from_slice(b"\x1b[?25l");
             self.to_terminal.extend_from_slice(&overlay.to_ansi());
-            self.to_terminal.extend_from_slice(self.shadow.cursor_and_style().as_bytes());
+            self.to_terminal
+                .extend_from_slice(self.shadow.cursor_and_style().as_bytes());
             self.drawn = Some(overlay);
         }
         self.to_terminal.extend_from_slice(b"\x1b[?2026l");
@@ -594,13 +615,16 @@ impl App {
 
 /// Kind marks only help when the list holds values or mixes kinds (§5.1).
 fn shows_kinds(items: &[Candidate]) -> bool {
-    let valueish = |k: &Kind| matches!(k, Kind::File | Kind::Dir | Kind::Value | Kind::Generated(_));
+    let valueish =
+        |k: &Kind| matches!(k, Kind::File | Kind::Dir | Kind::Value | Kind::Generated(_));
     items.iter().any(|c| valueish(&c.kind))
-        && items.iter().any(|c| c.kind != items[0].kind || !matches!(c.kind, Kind::Value))
+        && items
+            .iter()
+            .any(|c| c.kind != items[0].kind || !matches!(c.kind, Kind::Value))
 }
 
 fn to_item(c: &Candidate, show_kinds: bool) -> Item {
-    let kind_mark = show_kinds.then(|| match &c.kind {
+    let kind_mark = show_kinds.then_some(match &c.kind {
         Kind::Command | Kind::Subcommand => ('▸', KindColor::Blue),
         Kind::Option => (' ', KindColor::Plain),
         Kind::Value => ('=', KindColor::Green),
@@ -615,7 +639,11 @@ fn to_item(c: &Candidate, show_kinds: bool) -> Item {
         },
     });
     // The kind mark already says what a generated value is.
-    let meta = if matches!(c.kind, Kind::Generated(_)) && show_kinds { String::new() } else { c.meta.clone() };
+    let meta = if matches!(c.kind, Kind::Generated(_)) && show_kinds {
+        String::new()
+    } else {
+        c.meta.clone()
+    };
     Item {
         kind_mark,
         name: c.display.clone(),
@@ -684,7 +712,11 @@ mod tests {
             let before = self.sent.len();
             self.app.on_input(bytes, self.now);
             self.pump();
-            let echo: Vec<u8> = self.sent[before..].iter().copied().filter(|b| *b >= 0x20 && *b != 0x7f).collect();
+            let echo: Vec<u8> = self.sent[before..]
+                .iter()
+                .copied()
+                .filter(|b| *b >= 0x20 && *b != 0x7f)
+                .collect();
             if !echo.is_empty() {
                 self.output(&echo);
             }
@@ -710,7 +742,11 @@ mod tests {
         }
 
         fn row(&self, row: u16) -> String {
-            self.screen.screen().rows(0, 80).nth(usize::from(row)).unwrap_or_default()
+            self.screen
+                .screen()
+                .rows(0, 80)
+                .nth(usize::from(row))
+                .unwrap_or_default()
         }
 
         fn popup_visible(&self) -> bool {
@@ -827,7 +863,9 @@ mod tests {
     #[test]
     fn flips_above_and_restores_output_at_the_bottom() {
         let mut s = Session::bash();
-        let lines: Vec<u8> = (1..=40).flat_map(|i| format!("\r\nline {i}").into_bytes()).collect();
+        let lines: Vec<u8> = (1..=40)
+            .flat_map(|i| format!("\r\nline {i}").into_bytes())
+            .collect();
         s.output(&lines);
         s.output(b"\r\n");
         s.output(PROMPT);
@@ -836,7 +874,10 @@ mod tests {
         s.wait(200);
         assert!(s.popup_visible());
         assert!(s.row(23).starts_with("$ git c"));
-        assert!(s.row(22).contains('╰'), "the popup sits right above the prompt");
+        assert!(
+            s.row(22).contains('╰'),
+            "the popup sits right above the prompt"
+        );
         s.type_keys(b"\x1b");
         s.wait(30);
         assert_eq!(s.text(), format!("{before} git c"));
@@ -881,6 +922,47 @@ mod tests {
         assert!(s.popup_visible());
         // The private messages never reach the terminal.
         assert!(!s.screen.screen().contents().contains("6973"));
+    }
+
+    /// The UI spec's budget: the list updates within 16 ms of a keystroke
+    /// (p99). Run with `cargo test --release -p terme -- --ignored latency`.
+    #[test]
+    #[ignore = "timing; run in release mode"]
+    fn latency_budget() {
+        let mut s = Session::bash();
+        let lines: [&[u8]; 4] = [
+            b"git commit --a",
+            b"docker run -",
+            b"tar -xzf ",
+            b"systemctl st",
+        ];
+        let mut samples = Vec::new();
+        for _ in 0..50 {
+            for line in lines {
+                s.type_keys(line);
+                s.wait(200);
+                for _ in 0..3 {
+                    let started = Instant::now();
+                    s.app.on_input(b"\x7f", s.now);
+                    s.app.on_output(b"\x08\x1b[K", s.now);
+                    s.pump();
+                    samples.push(started.elapsed());
+                }
+                s.type_keys(b"\x03");
+                s.output(PROMPT);
+            }
+        }
+        samples.sort();
+        let p50 = samples[samples.len() / 2];
+        let p99 = samples[samples.len() * 99 / 100];
+        eprintln!(
+            "keystroke to frame: p50 {p50:?}, p99 {p99:?} over {} samples",
+            samples.len()
+        );
+        assert!(
+            p99 < Duration::from_millis(16),
+            "p99 {p99:?} is over budget"
+        );
     }
 
     #[test]

@@ -107,7 +107,9 @@ pub fn worth_showing(ctx: &Context<'_>, s: &Suggestions) -> bool {
     // A finished word with nothing longer to offer.
     let complete = first.match_kind == MatchKind::Exact
         && first.insert == ctx.word.raw_prefix
-        && s.items[1..].iter().all(|c| c.match_kind > MatchKind::PrefixNoCase);
+        && s.items[1..]
+            .iter()
+            .all(|c| c.match_kind > MatchKind::PrefixNoCase);
     !complete
 }
 
@@ -137,7 +139,14 @@ fn commands(word: &Word, env: &Env<'_>) -> Suggestions {
     for spec in env.specs.iter() {
         if let Some(m) = match_name(&word.prefix, spec.name()) {
             seen.insert(spec.name().to_string());
-            s.items.push(simple(spec.name(), &spec.description, Kind::Command, m, 100, word));
+            s.items.push(simple(
+                spec.name(),
+                &spec.description,
+                Kind::Command,
+                m,
+                100,
+                word,
+            ));
         }
     }
     for name in env.commands {
@@ -154,7 +163,14 @@ fn commands(word: &Word, env: &Env<'_>) -> Suggestions {
     s
 }
 
-fn simple(name: &str, description: &str, kind: Kind, m: Match, priority: i32, word: &Word) -> Candidate {
+fn simple(
+    name: &str,
+    description: &str,
+    kind: Kind,
+    m: Match,
+    priority: i32,
+    word: &Word,
+) -> Candidate {
     Candidate {
         insert: escape(name, word.open_quote, true),
         suffix: Suffix::Space,
@@ -171,7 +187,9 @@ fn simple(name: &str, description: &str, kind: Kind, m: Match, priority: i32, wo
 
 fn in_spec(spec: &SpecContext<'_>, word: &Word, env: &Env<'_>) -> Suggestions {
     match &spec.slot {
-        Slot::Option { cluster: Some(cluster) } => cluster_additions(spec, cluster),
+        Slot::Option {
+            cluster: Some(cluster),
+        } => cluster_additions(spec, cluster),
         Slot::Option { cluster: None } => options(spec, word),
         Slot::OptionValue { arg, .. } => {
             let mut s = Suggestions {
@@ -187,7 +205,14 @@ fn in_spec(spec: &SpecContext<'_>, word: &Word, env: &Env<'_>) -> Suggestions {
                 s.label = "subcommand".into();
                 for sub in &spec.command.subcommands {
                     if let Some((m, name)) = best_name(&word.prefix, &sub.names) {
-                        s.items.push(simple(name, &sub.description, Kind::Subcommand, m, sub.priority, word));
+                        s.items.push(simple(
+                            name,
+                            &sub.description,
+                            Kind::Subcommand,
+                            m,
+                            sub.priority,
+                            word,
+                        ));
                     }
                 }
             }
@@ -246,7 +271,8 @@ fn options(spec: &SpecContext<'_>, word: &Word) -> Suggestions {
         let Some((m, matched)) = best_name(prefix, &names) else {
             continue;
         };
-        s.items.push(option_candidate(opt, matched, m, typing_long, word));
+        s.items
+            .push(option_candidate(opt, matched, m, typing_long, word));
     }
     if s.items.is_empty() && prefix.trim_start_matches('-').chars().count() >= 3 {
         s.label = "option · matched in docs".into();
@@ -260,14 +286,21 @@ fn options(spec: &SpecContext<'_>, word: &Word) -> Suggestions {
                     kind: MatchKind::Description,
                     positions: Vec::new(),
                 };
-                s.items.push(option_candidate(opt, &name, m, typing_long, word));
+                s.items
+                    .push(option_candidate(opt, &name, m, typing_long, word));
             }
         }
     }
     s
 }
 
-fn option_candidate(opt: &Opt, matched: &str, m: Match, typing_long: bool, word: &Word) -> Candidate {
+fn option_candidate(
+    opt: &Opt,
+    matched: &str,
+    m: Match,
+    typing_long: bool,
+    word: &Word,
+) -> Candidate {
     let placeholder = opt.arg.as_ref().map(|a| format!("‹{}›", a.name));
     let (display, offset) = option_display(opt, matched, typing_long, placeholder.as_deref());
     // Insert the spelling the user is typing: long if they typed `--`.
@@ -277,7 +310,9 @@ fn option_candidate(opt: &Opt, matched: &str, m: Match, typing_long: bool, word:
         opt.short().unwrap_or(matched).to_string()
     };
     let (insert, suffix) = match &opt.arg {
-        Some(_) if insert_name.starts_with("--") && opt.requires_equals => (format!("{insert_name}="), Suffix::Nothing),
+        Some(_) if insert_name.starts_with("--") && opt.requires_equals => {
+            (format!("{insert_name}="), Suffix::Nothing)
+        }
         _ => (insert_name, Suffix::Space),
     };
     Candidate {
@@ -286,7 +321,11 @@ fn option_candidate(opt: &Opt, matched: &str, m: Match, typing_long: bool, word:
         display,
         highlights: m.positions.iter().map(|p| p + offset).collect(),
         description: opt.description.clone(),
-        meta: if opt.deprecated { "deprecated".into() } else { String::new() },
+        meta: if opt.deprecated {
+            "deprecated".into()
+        } else {
+            String::new()
+        },
         kind: Kind::Option,
         match_kind: m.kind,
         priority: opt.priority - if opt.deprecated { 1000 } else { 0 },
@@ -295,8 +334,15 @@ fn option_candidate(opt: &Opt, matched: &str, m: Match, typing_long: bool, word:
 }
 
 /// The list text for an option, and where `matched` starts inside it.
-fn option_display(opt: &Opt, matched: &str, typing_long: bool, placeholder: Option<&str>) -> (String, usize) {
-    let long = opt.long().or_else(|| opt.names.iter().find(|n| n.len() > 2).map(String::as_str));
+fn option_display(
+    opt: &Opt,
+    matched: &str,
+    typing_long: bool,
+    placeholder: Option<&str>,
+) -> (String, usize) {
+    let long = opt
+        .long()
+        .or_else(|| opt.names.iter().find(|n| n.len() > 2).map(String::as_str));
     let short = opt.short();
     let value = |name: &str| match placeholder {
         Some(p) if name.starts_with("--") => format!("{name}={p}"),
@@ -315,7 +361,11 @@ fn option_display(opt: &Opt, matched: &str, typing_long: bool, placeholder: Opti
     match (short, long) {
         (Some(short), Some(long)) => {
             let d = format!("{short}, {}", value(long));
-            let offset = if matched == short { 0 } else { short.chars().count() + 2 };
+            let offset = if matched == short {
+                0
+            } else {
+                short.chars().count() + 2
+            };
             (d, offset)
         }
         (Some(short), None) => (value(short), 0),
@@ -347,13 +397,25 @@ fn cluster_additions(spec: &SpecContext<'_>, cluster: &str) -> Suggestions {
         if used && !opt.repeatable {
             continue;
         }
-        if in_cluster.iter().chain(&spec.used).any(|u| u.conflicts_with(opt)) {
+        if in_cluster
+            .iter()
+            .chain(&spec.used)
+            .any(|u| u.conflicts_with(opt))
+        {
             continue;
         }
-        let needs = opt.arg.as_ref().map(|a| format!("needs ‹{}›", a.name)).unwrap_or_default();
+        let needs = opt
+            .arg
+            .as_ref()
+            .map(|a| format!("needs ‹{}›", a.name))
+            .unwrap_or_default();
         s.items.push(Candidate {
             insert: format!("{cluster}{letter}"),
-            suffix: if opt.takes_value() { Suffix::Space } else { Suffix::Nothing },
+            suffix: if opt.takes_value() {
+                Suffix::Space
+            } else {
+                Suffix::Nothing
+            },
             display: letter.to_string(),
             highlights: Vec::new(),
             description: opt.description.clone(),
@@ -373,7 +435,14 @@ fn arg_values(arg: &Arg, word: &Word, env: &Env<'_>, s: &mut Suggestions) {
     }
     for sug in &arg.suggestions {
         if let Some(m) = match_name(&word.prefix, &sug.name) {
-            let mut c = simple(&sug.name, &sug.description, Kind::Value, m, sug.priority, word);
+            let mut c = simple(
+                &sug.name,
+                &sug.description,
+                Kind::Value,
+                m,
+                sug.priority,
+                word,
+            );
             c.priority += 50;
             s.items.push(c);
         }
@@ -382,14 +451,25 @@ fn arg_values(arg: &Arg, word: &Word, env: &Env<'_>, s: &mut Suggestions) {
         match (env.generated)(generator) {
             Some(values) => {
                 // Huge lists (all apt packages) only make sense once filtered.
-                let limit = if word.prefix.is_empty() { MAX_PATHS } else { 2000 };
+                let limit = if word.prefix.is_empty() {
+                    MAX_PATHS
+                } else {
+                    2000
+                };
                 let matches = values
                     .iter()
                     .filter_map(|v| match_name(&word.prefix, v).map(|m| (v, m)))
                     .filter(|(_, m)| m.kind <= MatchKind::Subsequence)
                     .take(limit);
                 for (value, m) in matches {
-                    let mut c = simple(value, "", Kind::Generated(generator.kind.clone()), m, 60, word);
+                    let mut c = simple(
+                        value,
+                        "",
+                        Kind::Generated(generator.kind.clone()),
+                        m,
+                        60,
+                        word,
+                    );
                     c.meta.clone_from(&generator.kind);
                     s.items.push(c);
                 }
@@ -411,7 +491,10 @@ fn paths(word: &Word, env: &Env<'_>, template: Template, extensions: &[String]) 
     };
     let raw_dir = match word.raw_prefix.rfind('/') {
         Some(i) => &word.raw_prefix[..=i],
-        None => word.raw_prefix.get(..usize::from(word.open_quote.is_some())).unwrap_or(""),
+        None => word
+            .raw_prefix
+            .get(..usize::from(word.open_quote.is_some()))
+            .unwrap_or(""),
     };
     let dir = resolve_dir(dir_value, env);
     let Ok(entries) = std::fs::read_dir(&dir) else {
@@ -423,7 +506,9 @@ fn paths(word: &Word, env: &Env<'_>, template: Template, extensions: &[String]) 
         if name.starts_with('.') && !partial.starts_with('.') {
             continue;
         }
-        let Some(m) = match_name(partial, &name) else { continue };
+        let Some(m) = match_name(partial, &name) else {
+            continue;
+        };
         if m.kind > MatchKind::Subsequence {
             continue;
         }
@@ -440,7 +525,11 @@ fn paths(word: &Word, env: &Env<'_>, template: Template, extensions: &[String]) 
             let close = word.open_quote.map(String::from).unwrap_or_default();
             (format!("{raw_dir}{escaped}{close}"), Suffix::Space)
         };
-        let display = if is_dir { format!("{name}/") } else { name.clone() };
+        let display = if is_dir {
+            format!("{name}/")
+        } else {
+            name.clone()
+        };
         out.push(Candidate {
             insert,
             suffix,
@@ -453,7 +542,13 @@ fn paths(word: &Word, env: &Env<'_>, template: Template, extensions: &[String]) 
             },
             kind: if is_dir { Kind::Dir } else { Kind::File },
             match_kind: m.kind,
-            priority: if wanted_ext { 40 } else if is_dir { 10 } else { 0 },
+            priority: if wanted_ext {
+                40
+            } else if is_dir {
+                10
+            } else {
+                0
+            },
             opens_more: is_dir,
         });
         if out.len() >= MAX_PATHS {
@@ -473,7 +568,11 @@ fn resolve_dir(dir_value: &str, env: &Env<'_>) -> PathBuf {
         }
     }
     let p = Path::new(dir_value);
-    if p.is_absolute() { p.to_path_buf() } else { env.cwd.join(p) }
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        env.cwd.join(p)
+    }
 }
 
 fn human_size(bytes: u64) -> String {
@@ -498,7 +597,11 @@ fn human_size(bytes: u64) -> String {
 pub fn escape(value: &str, open_quote: Option<char>, whole_word: bool) -> String {
     match open_quote {
         Some(q) => {
-            let close = if whole_word { q.to_string() } else { String::new() };
+            let close = if whole_word {
+                q.to_string()
+            } else {
+                String::new()
+            };
             format!("{q}{}{close}", escape_in(value, Some(q)))
         }
         None => escape_in(value, None),
@@ -525,8 +628,26 @@ fn escape_in(value: &str, open_quote: Option<char>) -> String {
             None => {
                 let special = matches!(
                     c,
-                    ' ' | '\t' | '\'' | '"' | '\\' | '$' | '`' | '&' | '|' | ';' | '<' | '>' | '(' | ')'
-                        | '*' | '?' | '[' | ']' | '{' | '}' | '!'
+                    ' ' | '\t'
+                        | '\''
+                        | '"'
+                        | '\\'
+                        | '$'
+                        | '`'
+                        | '&'
+                        | '|'
+                        | ';'
+                        | '<'
+                        | '>'
+                        | '('
+                        | ')'
+                        | '*'
+                        | '?'
+                        | '['
+                        | ']'
+                        | '{'
+                        | '}'
+                        | '!'
                 ) || (i == 0 && matches!(c, '#' | '~'));
                 if special {
                     out.push('\\');
@@ -554,7 +675,8 @@ mod tests {
         pub struct Dir(pub std::path::PathBuf);
         impl Dir {
             pub fn new(tag: &str) -> Self {
-                let p = std::env::temp_dir().join(format!("terme-test-{tag}-{}", std::process::id()));
+                let p =
+                    std::env::temp_dir().join(format!("terme-test-{tag}-{}", std::process::id()));
                 let _ = std::fs::remove_dir_all(&p);
                 std::fs::create_dir_all(&p).unwrap();
                 Self(p)
@@ -577,7 +699,9 @@ mod tests {
             std::fs::create_dir(dir.0.join(".hidden")).unwrap();
             Self {
                 specs: SpecSet::builtin(),
-                commands: ["gcc", "gzip", "git", "grep", "echo"].map(String::from).to_vec(),
+                commands: ["gcc", "gzip", "git", "grep", "echo"]
+                    .map(String::from)
+                    .to_vec(),
                 dir,
             }
         }
@@ -622,7 +746,10 @@ mod tests {
     fn git_subcommands_rank_by_priority() {
         let f = Fixture::new("sub");
         let s = f.suggest("git c█");
-        assert_eq!(displays(&s)[..4], ["commit", "checkout", "clone", "cherry-pick"]);
+        assert_eq!(
+            displays(&s)[..4],
+            ["commit", "checkout", "clone", "cherry-pick"]
+        );
         assert_eq!(s.items[0].insert, "commit");
         assert_eq!(s.items[0].suffix, Suffix::Space);
     }
@@ -644,7 +771,15 @@ mod tests {
     fn short_options_pair_like_man_pages() {
         let f = Fixture::new("short");
         let s = f.suggest("tar -█");
-        assert_eq!(displays(&s)[..4], ["-x, --extract", "-c, --create", "-t, --list", "-f, --file=‹FILE›"]);
+        assert_eq!(
+            displays(&s)[..4],
+            [
+                "-x, --extract",
+                "-c, --create",
+                "-t, --list",
+                "-f, --file=‹FILE›"
+            ]
+        );
         assert_eq!(s.items[0].insert, "-x");
         assert!(displays(&s).contains(&"    --exclude=‹PATTERN›"));
     }
@@ -673,7 +808,16 @@ mod tests {
         let f = Fixture::new("tarfile");
         let s = f.suggest("tar -xzf █");
         assert_eq!(s.label, "‹FILE› archive to read");
-        assert_eq!(displays(&s), ["backup.tar.gz", "site.tgz", "old/", "my file.txt", "notes.txt"]);
+        assert_eq!(
+            displays(&s),
+            [
+                "backup.tar.gz",
+                "site.tgz",
+                "old/",
+                "my file.txt",
+                "notes.txt"
+            ]
+        );
         assert_eq!(s.items[2].insert, "old/");
         assert_eq!(s.items[2].suffix, Suffix::Nothing);
         assert_eq!(s.items[3].insert, r"my\ file.txt");
@@ -699,7 +843,14 @@ mod tests {
         let f = Fixture::new("desc");
         let s = f.suggest("docker run --port█");
         assert_eq!(s.label, "option · matched in docs");
-        assert_eq!(displays(&s)[..3], ["--publish=‹host:ctr›  -p", "--publish-all  -P", "--expose=‹port›"]);
+        assert_eq!(
+            displays(&s)[..3],
+            [
+                "--publish=‹host:ctr›  -p",
+                "--publish-all  -P",
+                "--expose=‹port›"
+            ]
+        );
         assert_eq!(s.items[0].insert, "--publish");
     }
 
@@ -709,7 +860,11 @@ mod tests {
         let s = f.suggest("git checkout fe█");
         assert_eq!(s.pending.len(), 1);
         let s = f.suggest_with("git checkout fe█", &|_| {
-            Some(Arc::new(vec!["feature/login".into(), "main".into(), "feature/search".into()]))
+            Some(Arc::new(vec![
+                "feature/login".into(),
+                "main".into(),
+                "feature/search".into(),
+            ]))
         });
         assert!(s.pending.is_empty());
         assert_eq!(displays(&s)[..2], ["feature/login", "feature/search"]);

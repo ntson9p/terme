@@ -102,7 +102,9 @@ impl Command {
     /// Find an option by one of its exact names.
     #[must_use]
     pub fn find_option(&self, name: &str) -> Option<&Opt> {
-        self.options.iter().find(|o| o.names.iter().any(|n| n == name))
+        self.options
+            .iter()
+            .find(|o| o.names.iter().any(|n| n == name))
     }
 
     /// Whether every char after the dash is a known short flag, as in `-xzf`.
@@ -222,10 +224,18 @@ mod tests {
                 for n in &opt.names {
                     assert!(n.starts_with('-'), "{path}: option name {n:?}");
                 }
-                assert!(!opt.description.is_empty(), "{path} {:?}: no description", opt.names);
+                assert!(
+                    !opt.description.is_empty(),
+                    "{path} {:?}: no description",
+                    opt.names
+                );
             }
             for sub in &cmd.subcommands {
-                assert!(!sub.description.is_empty(), "{path} {}: no description", sub.name());
+                assert!(
+                    !sub.description.is_empty(),
+                    "{path} {}: no description",
+                    sub.name()
+                );
                 check(sub, &format!("{path} {}", sub.name()));
             }
         }

@@ -47,7 +47,11 @@ pub fn plan(line: &str, word: &Word, cursor: usize, candidate: &Candidate) -> Ed
     let end = word.end.min(chars.len());
     let existing = &chars[word.start.min(end)..end];
     let new: Vec<char> = candidate.insert.chars().collect();
-    let common = existing.iter().zip(&new).take_while(|(a, b)| a == b).count();
+    let common = existing
+        .iter()
+        .zip(&new)
+        .take_while(|(a, b)| a == b)
+        .count();
     let mut text: String = new[common..].iter().collect();
     let mut after_forward = 0;
     if candidate.suffix == Suffix::Space {
@@ -100,30 +104,74 @@ mod tests {
     #[test]
     fn completes_the_rest_of_the_word() {
         let line = "git commit --a";
-        let e = plan(line, &word(line, 11, 14, 14), 14, &candidate("--amend", Suffix::Space));
-        assert_eq!(e, Edit { forward: 0, backspaces: 0, text: "mend ".into(), after_forward: 0 });
+        let e = plan(
+            line,
+            &word(line, 11, 14, 14),
+            14,
+            &candidate("--amend", Suffix::Space),
+        );
+        assert_eq!(
+            e,
+            Edit {
+                forward: 0,
+                backspaces: 0,
+                text: "mend ".into(),
+                after_forward: 0
+            }
+        );
         assert_eq!(e.keystrokes(), b"mend ");
     }
 
     #[test]
     fn replaces_a_mismatched_word() {
         let line = "git comit";
-        let e = plan(line, &word(line, 4, 9, 9), 9, &candidate("commit", Suffix::Space));
-        assert_eq!(e, Edit { forward: 0, backspaces: 2, text: "mit ".into(), after_forward: 0 });
+        let e = plan(
+            line,
+            &word(line, 4, 9, 9),
+            9,
+            &candidate("commit", Suffix::Space),
+        );
+        assert_eq!(
+            e,
+            Edit {
+                forward: 0,
+                backspaces: 2,
+                text: "mit ".into(),
+                after_forward: 0
+            }
+        );
     }
 
     #[test]
     fn cursor_inside_the_word() {
         let line = "git chec main";
-        let e = plan(line, &word(line, 4, 8, 6), 6, &candidate("checkout", Suffix::Space));
-        assert_eq!(e, Edit { forward: 2, backspaces: 0, text: "kout".into(), after_forward: 1 });
+        let e = plan(
+            line,
+            &word(line, 4, 8, 6),
+            6,
+            &candidate("checkout", Suffix::Space),
+        );
+        assert_eq!(
+            e,
+            Edit {
+                forward: 2,
+                backspaces: 0,
+                text: "kout".into(),
+                after_forward: 1
+            }
+        );
         assert_eq!(e.keystrokes(), b"\x06\x06kout\x06");
     }
 
     #[test]
     fn no_space_after_folders() {
         let line = "cd sr";
-        let e = plan(line, &word(line, 3, 5, 5), 5, &candidate("src/", Suffix::Nothing));
+        let e = plan(
+            line,
+            &word(line, 3, 5, 5),
+            5,
+            &candidate("src/", Suffix::Nothing),
+        );
         assert_eq!(e.text, "c/");
     }
 }

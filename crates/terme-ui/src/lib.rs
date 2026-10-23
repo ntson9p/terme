@@ -39,7 +39,10 @@ impl Overlay {
     /// Whether the cell at screen position (row, col) belongs to this overlay.
     #[must_use]
     pub fn covers(&self, row: u16, col: u16) -> bool {
-        row >= self.top && row < self.top + self.height() && col >= self.left && col < self.left + self.width()
+        row >= self.top
+            && row < self.top + self.height()
+            && col >= self.left
+            && col < self.left + self.width()
     }
 
     /// The characters only, one line per row, for tests and snapshots.

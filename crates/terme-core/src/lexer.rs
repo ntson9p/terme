@@ -204,7 +204,10 @@ mod tests {
 
     #[test]
     fn handles_quotes_and_escapes() {
-        assert_eq!(words(r#"echo "a b" 'c d' e\ f"#), ["echo", "a b", "c d", "e f"]);
+        assert_eq!(
+            words(r#"echo "a b" 'c d' e\ f"#),
+            ["echo", "a b", "c d", "e f"]
+        );
         assert_eq!(words(r#"echo "say \"hi\"""#), ["echo", r#"say "hi""#]);
     }
 
@@ -227,8 +230,21 @@ mod tests {
         assert_eq!(
             kinds,
             [
-                W, W, O(Op::Pipe), W, W, O(Op::And), W, W, O(Op::Semi), W,
-                O(Op::Redirect), W, O(Op::Redirect), W, O(Op::Background)
+                W,
+                W,
+                O(Op::Pipe),
+                W,
+                W,
+                O(Op::And),
+                W,
+                W,
+                O(Op::Semi),
+                W,
+                O(Op::Redirect),
+                W,
+                O(Op::Redirect),
+                W,
+                O(Op::Background)
             ]
         );
     }

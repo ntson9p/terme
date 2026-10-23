@@ -14,10 +14,11 @@ use std::time::{Duration, Instant};
 use terme_core::spec::Generator;
 
 const BUILTINS: &[&str] = &[
-    "alias", "bg", "builtin", "cd", "command", "declare", "dirs", "disown", "echo", "eval", "exec", "exit",
-    "export", "false", "fc", "fg", "hash", "help", "history", "jobs", "kill", "let", "local", "popd", "printf",
-    "pushd", "pwd", "read", "readonly", "return", "set", "shift", "source", "test", "time", "trap", "true", "type",
-    "typeset", "ulimit", "umask", "unalias", "unset", "wait",
+    "alias", "bg", "builtin", "cd", "command", "declare", "dirs", "disown", "echo", "eval", "exec",
+    "exit", "export", "false", "fc", "fg", "hash", "help", "history", "jobs", "kill", "let",
+    "local", "popd", "printf", "pushd", "pwd", "read", "readonly", "return", "set", "shift",
+    "source", "test", "time", "trap", "true", "type", "typeset", "ulimit", "umask", "unalias",
+    "unset", "wait",
 ];
 
 /// Executables on `PATH` plus shell builtins, sorted and unique.
@@ -26,7 +27,9 @@ pub fn command_names() -> Vec<String> {
     let mut names: HashSet<String> = BUILTINS.iter().map(|s| (*s).to_string()).collect();
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
-            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for entry in entries.flatten() {
                 // Follow symlinks: /usr/bin/sh is usually one.
                 let executable = std::fs::metadata(entry.path())
@@ -92,7 +95,11 @@ impl Generators {
                 }
             })
             .expect("spawning the generator thread");
-        Self { cache, running, jobs }
+        Self {
+            cache,
+            running,
+            jobs,
+        }
     }
 
     /// Cached values, if fresh.
@@ -106,7 +113,12 @@ impl Generators {
     /// Run the generator in the background unless it's already running.
     pub fn request(&self, cwd: &Path, generator: &Generator) {
         let key = (cwd.to_path_buf(), generator.clone());
-        if self.running.lock().expect("running lock").insert(key.clone()) {
+        if self
+            .running
+            .lock()
+            .expect("running lock")
+            .insert(key.clone())
+        {
             let _ = self.jobs.send(key);
         }
     }
@@ -123,7 +135,9 @@ fn run(cwd: &Path, generator: &Generator) -> Vec<String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn();
-    let Ok(mut child) = child else { return Vec::new() };
+    let Ok(mut child) = child else {
+        return Vec::new();
+    };
     let mut stdout = child.stdout.take().expect("piped stdout");
     let reader = thread::spawn(move || {
         let mut buf = Vec::new();
@@ -168,7 +182,10 @@ mod tests {
     #[test]
     fn parses_lines_and_fields() {
         assert_eq!(parse("a\n b \n\na\n", None), ["a", "b"]);
-        assert_eq!(parse("nginx.service loaded active\nssh.service loaded\n", Some(0)), ["nginx.service", "ssh.service"]);
+        assert_eq!(
+            parse("nginx.service loaded active\nssh.service loaded\n", Some(0)),
+            ["nginx.service", "ssh.service"]
+        );
     }
 
     #[test]

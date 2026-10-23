@@ -67,7 +67,10 @@ pub struct Context<'a> {
 /// Commands that run another command; the command after them is what matters.
 /// Each entry lists the wrapper's options that take a value.
 const WRAPPERS: &[(&str, &[&str])] = &[
-    ("sudo", &["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T"]),
+    (
+        "sudo",
+        &["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T"],
+    ),
     ("doas", &["-u", "-C"]),
     ("time", &["-f", "-o"]),
     ("nice", &["-n"]),
@@ -243,7 +246,9 @@ fn walk<'a>(spec: &'a Command, words: &[String], word: &Word) -> SpecContext<'a>
             continue;
         }
         if !dashdash && w.starts_with("--") && w.len() > 2 {
-            let (name, has_value) = w.split_once('=').map_or((w.as_str(), false), |(n, _)| (n, true));
+            let (name, has_value) = w
+                .split_once('=')
+                .map_or((w.as_str(), false), |(n, _)| (n, true));
             if let Some(opt) = node.find_option(name) {
                 used.push(opt);
                 if opt.takes_value() && !has_value {
@@ -337,13 +342,22 @@ fn shift_word_after_equals(ctx: &mut Context<'_>, chars: &[char]) {
     if !matches!(spec.slot, Slot::OptionValue { .. }) || !ctx.word.prefix.starts_with("--") {
         return;
     }
-    let Some(eq) = chars[ctx.word.start..ctx.word.end].iter().position(|&c| c == '=') else {
+    let Some(eq) = chars[ctx.word.start..ctx.word.end]
+        .iter()
+        .position(|&c| c == '=')
+    else {
         return;
     };
     let w = &mut ctx.word;
     w.start += eq + 1;
-    w.prefix = w.prefix.split_once('=').map_or_else(String::new, |(_, v)| v.to_string());
-    w.raw_prefix = w.raw_prefix.split_once('=').map_or_else(String::new, |(_, v)| v.to_string());
+    w.prefix = w
+        .prefix
+        .split_once('=')
+        .map_or_else(String::new, |(_, v)| v.to_string());
+    w.raw_prefix = w
+        .raw_prefix
+        .split_once('=')
+        .map_or_else(String::new, |(_, v)| v.to_string());
 }
 
 #[cfg(test)]
@@ -356,7 +370,10 @@ mod tests {
 
     /// `|` in the test line marks the cursor.
     fn at(line_with_cursor: &str) -> (String, usize) {
-        let cursor = line_with_cursor.chars().position(|c| c == '█').expect("cursor mark");
+        let cursor = line_with_cursor
+            .chars()
+            .position(|c| c == '█')
+            .expect("cursor mark");
         (line_with_cursor.replacen('█', "", 1), cursor)
     }
 
@@ -398,14 +415,20 @@ mod tests {
     fn subcommands_and_options() {
         assert_eq!(describe("git c█"), "git positional +sub [c]");
         assert_eq!(describe("git commit --a█"), "git commit option [--a]");
-        assert_eq!(describe("sudo git commit █"), "git commit positional pathspec []");
+        assert_eq!(
+            describe("sudo git commit █"),
+            "git commit positional pathspec []"
+        );
         assert_eq!(describe("git -C /tmp sta█"), "git positional +sub [sta]");
     }
 
     #[test]
     fn option_values() {
         assert_eq!(describe("git commit -m █"), "git commit value of -m []");
-        assert_eq!(describe("git commit --author=Jo█"), "git commit value of --author [Jo]");
+        assert_eq!(
+            describe("git commit --author=Jo█"),
+            "git commit value of --author [Jo]"
+        );
         assert_eq!(describe("tar -xzf █"), "tar value of -f []");
         assert_eq!(describe("tar -xzf a.tgz █"), "tar positional FILE []");
     }
@@ -422,7 +445,10 @@ mod tests {
         assert_eq!(describe("echo hi > ou█"), "redirect [ou]");
         assert_eq!(describe("ls # comment █"), "free []");
         assert_eq!(describe("./deploy.sh --█"), "unknown deploy.sh [--]");
-        assert_eq!(describe("git commit -- fi█"), "git commit positional pathspec [fi]");
+        assert_eq!(
+            describe("git commit -- fi█"),
+            "git commit positional pathspec [fi]"
+        );
     }
 
     #[test]
@@ -431,6 +457,9 @@ mod tests {
         let ctx = analyze("git commit --author=Jo", 22, &specs);
         assert_eq!((ctx.word.start, ctx.word.end), (20, 22));
         let ctx = analyze("git chec main", 6, &specs);
-        assert_eq!((ctx.word.start, ctx.word.end, ctx.word.prefix.as_str()), (4, 8, "ch"));
+        assert_eq!(
+            (ctx.word.start, ctx.word.end, ctx.word.prefix.as_str()),
+            (4, 8, "ch")
+        );
     }
 }

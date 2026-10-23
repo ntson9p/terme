@@ -94,7 +94,10 @@ impl Theme {
         let plain = Style::default();
         match self {
             Theme::Ansi16 => {
-                let fg = |n| Style { fg: Color::Ansi(n), ..plain };
+                let fg = |n| Style {
+                    fg: Color::Ansi(n),
+                    ..plain
+                };
                 let selected = Style {
                     fg: Color::Ansi(BRIGHT_WHITE),
                     bg: Color::Ansi(BLUE),
@@ -102,8 +105,14 @@ impl Theme {
                 };
                 match role {
                     Role::Border | Role::Label | Role::Muted => fg(BRIGHT_BLACK),
-                    Role::Name => Style { bold: true, ..plain },
-                    Role::Match => Style { bold: true, ..fg(BLUE) },
+                    Role::Name => Style {
+                        bold: true,
+                        ..plain
+                    },
+                    Role::Match => Style {
+                        bold: true,
+                        ..fg(BLUE)
+                    },
                     Role::Gutter => fg(BLUE),
                     Role::Kind(k) => match k {
                         KindColor::Blue => fg(BLUE),
@@ -113,7 +122,10 @@ impl Theme {
                         KindColor::Yellow => fg(3),
                         KindColor::Plain => plain,
                     },
-                    Role::Selected => Style { bold: true, ..selected },
+                    Role::Selected => Style {
+                        bold: true,
+                        ..selected
+                    },
                     Role::SelectedMatch => Style {
                         bold: true,
                         underline: true,
@@ -127,9 +139,15 @@ impl Theme {
             }
             Theme::Mono => match role {
                 Role::Border | Role::Label | Role::Muted => Style { dim: true, ..plain },
-                Role::Name | Role::Match => Style { bold: true, ..plain },
+                Role::Name | Role::Match => Style {
+                    bold: true,
+                    ..plain
+                },
                 Role::Gutter | Role::Kind(_) => plain,
-                Role::Selected | Role::SelectedMuted => Style { reverse: true, ..plain },
+                Role::Selected | Role::SelectedMuted => Style {
+                    reverse: true,
+                    ..plain
+                },
                 Role::SelectedMatch => Style {
                     reverse: true,
                     bold: true,

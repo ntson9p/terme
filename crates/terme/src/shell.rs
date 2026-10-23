@@ -100,7 +100,8 @@ pub fn prepare(shell: &Path, kind: ShellKind) -> Result<(CommandBuilder, HookDir
             write_file(p, "terme.zsh", ZSH_HOOKS)?;
             // zsh reads $ZDOTDIR/.zshenv, .zprofile, .zshrc and .zlogin. Each of
             // ours runs the user's own file from their real ZDOTDIR.
-            let user = std::env::var_os("ZDOTDIR").map_or_else(|| "$HOME".to_string(), |z| quote(Path::new(&z)));
+            let user = std::env::var_os("ZDOTDIR")
+                .map_or_else(|| "$HOME".to_string(), |z| quote(Path::new(&z)));
             write_file(
                 p,
                 ".zshenv",
@@ -142,15 +143,24 @@ mod tests {
 
     #[test]
     fn detects_supported_shells() {
-        assert_eq!(ShellKind::detect(Path::new("/usr/bin/zsh")), Some(ShellKind::Zsh));
-        assert_eq!(ShellKind::detect(Path::new("/bin/bash")), Some(ShellKind::Bash));
+        assert_eq!(
+            ShellKind::detect(Path::new("/usr/bin/zsh")),
+            Some(ShellKind::Zsh)
+        );
+        assert_eq!(
+            ShellKind::detect(Path::new("/bin/bash")),
+            Some(ShellKind::Bash)
+        );
         assert_eq!(ShellKind::detect(Path::new("/usr/bin/fish")), None);
     }
 
     #[test]
     fn hooks_have_unix_line_endings_and_no_status_variable() {
         for hooks in [BASH_HOOKS, ZSH_HOOKS] {
-            assert!(!hooks.contains("local status"), "zsh's $status is read-only");
+            assert!(
+                !hooks.contains("local status"),
+                "zsh's $status is read-only"
+            );
         }
         assert!(ZSH_HOOKS.contains("6973;line;"));
         assert!(BASH_HOOKS.contains("133;B"));

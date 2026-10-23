@@ -103,9 +103,27 @@ impl Columns {
 fn columns(view: &PopupView<'_>, max_inner: usize) -> Columns {
     let mut c = Columns {
         kind: view.items.iter().any(|i| i.kind_mark.is_some()),
-        name: view.items.iter().map(|i| width_of(&i.name)).max().unwrap_or(0).min(MAX_NAME),
-        desc: view.items.iter().map(|i| width_of(&i.description)).max().unwrap_or(0).min(MAX_DESC),
-        meta: view.items.iter().map(|i| width_of(&i.meta)).max().unwrap_or(0).min(MAX_META),
+        name: view
+            .items
+            .iter()
+            .map(|i| width_of(&i.name))
+            .max()
+            .unwrap_or(0)
+            .min(MAX_NAME),
+        desc: view
+            .items
+            .iter()
+            .map(|i| width_of(&i.description))
+            .max()
+            .unwrap_or(0)
+            .min(MAX_DESC),
+        meta: view
+            .items
+            .iter()
+            .map(|i| width_of(&i.meta))
+            .max()
+            .unwrap_or(0)
+            .min(MAX_META),
     };
     // Too wide: give up meta, then shorten descriptions, then names, and only
     // then drop descriptions altogether.
@@ -134,7 +152,13 @@ fn counter(view: &PopupView<'_>) -> String {
 
 /// Decide where the popup goes, or `None` if there's no room for it.
 #[must_use]
-pub fn place(screen: (u16, u16), anchor: Anchor, height: u16, width: u16, name_offset: u16) -> Option<Placement> {
+pub fn place(
+    screen: (u16, u16),
+    anchor: Anchor,
+    height: u16,
+    width: u16,
+    name_offset: u16,
+) -> Option<Placement> {
     let (rows, cols) = screen;
     if rows < MIN_ROWS || cols < MIN_COLS || width > cols {
         return None;
@@ -157,7 +181,10 @@ pub fn place(screen: (u16, u16), anchor: Anchor, height: u16, width: u16, name_o
         return None;
     };
     // Line the item names up with the start of the word.
-    let left = anchor.word_col.saturating_sub(name_offset).min(cols - width);
+    let left = anchor
+        .word_col
+        .saturating_sub(name_offset)
+        .min(cols - width);
     Some(Placement {
         top,
         left,
@@ -169,16 +196,26 @@ pub fn place(screen: (u16, u16), anchor: Anchor, height: u16, width: u16, name_o
 
 /// Draw the popup for a screen of `screen` (rows, cols) with the input at `anchor`.
 #[must_use]
-pub fn render(view: &PopupView<'_>, screen: (u16, u16), anchor: Anchor, theme: Theme) -> Option<Overlay> {
+pub fn render(
+    view: &PopupView<'_>,
+    screen: (u16, u16),
+    anchor: Anchor,
+    theme: Theme,
+) -> Option<Overlay> {
     if view.items.is_empty() {
         return None;
     }
     let (_, cols) = screen;
-    let max_total = MAX_WIDTH.min(usize::from(cols) * 3 / 5).max(MIN_WIDTH).min(usize::from(cols));
+    let max_total = MAX_WIDTH
+        .min(usize::from(cols) * 3 / 5)
+        .max(MIN_WIDTH)
+        .min(usize::from(cols));
     let mut cols_ = columns(view, max_total - 2);
     let label = fit(view.label, max_total.saturating_sub(8));
     let count = counter(view);
-    let min_inner = (width_of(&label) + 4).max(width_of(&count) + 4).max(MIN_WIDTH - 2);
+    let min_inner = (width_of(&label) + 4)
+        .max(width_of(&count) + 4)
+        .max(MIN_WIDTH - 2);
     let mut inner = cols_.inner().max(min_inner);
     if inner + 2 > max_total {
         inner = max_total - 2;
@@ -195,7 +232,11 @@ pub fn render(view: &PopupView<'_>, screen: (u16, u16), anchor: Anchor, theme: T
     let visible = usize::from(placement.height) - 2;
 
     // Keep the selected item in view.
-    let scroll = if view.selected >= visible { view.selected + 1 - visible } else { 0 };
+    let scroll = if view.selected >= visible {
+        view.selected + 1 - visible
+    } else {
+        0
+    };
 
     let mut rows: Vec<Vec<Cell>> = Vec::with_capacity(usize::from(placement.height));
     rows.push(border_top(&label, inner, theme));
@@ -225,7 +266,11 @@ fn push_str(row: &mut Vec<Cell>, s: &str, role: Role, theme: Theme) {
 }
 
 fn border_top(label: &str, inner: usize, theme: Theme) -> Vec<Cell> {
-    let mut row = vec![cell('╭', Role::Border, theme), cell('─', Role::Border, theme), cell(' ', Role::Border, theme)];
+    let mut row = vec![
+        cell('╭', Role::Border, theme),
+        cell('─', Role::Border, theme),
+        cell(' ', Role::Border, theme),
+    ];
     push_str(&mut row, label, Role::Label, theme);
     row.push(cell(' ', Role::Border, theme));
     while row.len() < inner + 1 {
@@ -249,10 +294,22 @@ fn border_bottom(count: &str, inner: usize, theme: Theme) -> Vec<Cell> {
     row
 }
 
-fn item_row(item: &Item, c: &Columns, inner: usize, selected: bool, focused: bool, theme: Theme) -> Vec<Cell> {
+fn item_row(
+    item: &Item,
+    c: &Columns,
+    inner: usize,
+    selected: bool,
+    focused: bool,
+    theme: Theme,
+) -> Vec<Cell> {
     let on_bar = selected && focused;
     let (name_role, match_role, muted_role, fill_role) = if on_bar {
-        (Role::Selected, Role::SelectedMatch, Role::SelectedMuted, Role::Selected)
+        (
+            Role::Selected,
+            Role::SelectedMatch,
+            Role::SelectedMuted,
+            Role::Selected,
+        )
     } else {
         (Role::Name, Role::Match, Role::Muted, Role::Muted)
     };
@@ -266,7 +323,11 @@ fn item_row(item: &Item, c: &Columns, inner: usize, selected: bool, focused: boo
     if c.kind {
         match item.kind_mark {
             Some((mark, color)) => {
-                let role = if on_bar { Role::Selected } else { Role::Kind(color) };
+                let role = if on_bar {
+                    Role::Selected
+                } else {
+                    Role::Kind(color)
+                };
                 row.push(cell(mark, role, theme));
             }
             None => row.push(cell(' ', fill_role, theme)),
@@ -276,7 +337,11 @@ fn item_row(item: &Item, c: &Columns, inner: usize, selected: bool, focused: boo
     let name = fit(&item.name, c.name);
     let mut w = 0;
     for (i, ch) in name.chars().enumerate() {
-        let role = if item.highlights.contains(&i) { match_role } else { name_role };
+        let role = if item.highlights.contains(&i) {
+            match_role
+        } else {
+            name_role
+        };
         row.push(cell(ch, role, theme));
         w += ch.width().unwrap_or(0);
     }
@@ -285,16 +350,30 @@ fn item_row(item: &Item, c: &Columns, inner: usize, selected: bool, focused: boo
         pad(&mut row, 2, fill_role, theme);
         let desc = fit(&item.description, c.desc);
         push_str(&mut row, &desc, muted_role, theme);
-        pad(&mut row, c.desc.saturating_sub(width_of(&desc)), fill_role, theme);
+        pad(
+            &mut row,
+            c.desc.saturating_sub(width_of(&desc)),
+            fill_role,
+            theme,
+        );
     }
     if c.meta > 0 {
         pad(&mut row, 2, fill_role, theme);
         let meta = fit(&item.meta, c.meta);
-        pad(&mut row, c.meta.saturating_sub(width_of(&meta)), fill_role, theme);
+        pad(
+            &mut row,
+            c.meta.saturating_sub(width_of(&meta)),
+            fill_role,
+            theme,
+        );
         push_str(&mut row, &meta, muted_role, theme);
     }
     // Pad to the right border.
-    let used: usize = row.iter().skip(1).map(|cl| cl.ch.width().unwrap_or(0)).sum();
+    let used: usize = row
+        .iter()
+        .skip(1)
+        .map(|cl| cl.ch.width().unwrap_or(0))
+        .sum();
     pad(&mut row, inner.saturating_sub(used), fill_role, theme);
     row.push(cell('│', Role::Border, theme));
     row
@@ -408,7 +487,10 @@ mod tests {
 
     #[test]
     fn shifts_left_at_the_right_edge_and_cuts_long_text() {
-        let items = items(&[("--a-very-long-option-name-indeed", "with a description that goes on and on")]);
+        let items = items(&[(
+            "--a-very-long-option-name-indeed",
+            "with a description that goes on and on",
+        )]);
         let view = PopupView {
             label: "option",
             items: &items,
@@ -451,7 +533,11 @@ mod tests {
         };
         let o = render(&view, (24, 80), anchor(3, 20), Theme::Ansi16).unwrap();
         let widths: Vec<usize> = o.rows.iter().map(Vec::len).collect();
-        assert!(widths.windows(2).all(|w| w[0] == w[1]), "{widths:?}\n{}", o.text());
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "{widths:?}\n{}",
+            o.text()
+        );
         insta::assert_snapshot!(o.text());
     }
 }
