@@ -1,0 +1,10 @@
+---
+source: crates/terme-ui/src/popup.rs
+expression: o.text()
+---
+╭─ option ──────────────────────────╮
+│▏--amend         redo last commit  │
+│ --all  -a       stage all changes │
+│ --author=‹who›  set the author    │
+│ --allow-empty   allow no changes  │
+╰──────────────────────────── 1/4 ──╯

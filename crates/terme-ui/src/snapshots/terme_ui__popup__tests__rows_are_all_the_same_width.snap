@@ -1,0 +1,9 @@
+---
+source: crates/terme-ui/src/popup.rs
+expression: o.text()
+---
+╭─ branch ────────────────────╮
+│▏⎇ feature/login  2 days ago │
+│   main                      │
+│ ▤ notes.txt                 │
+╰────────────────────── 1/3 ──╯

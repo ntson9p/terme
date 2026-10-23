@@ -1,0 +1,8 @@
+---
+source: crates/terme-ui/src/popup.rs
+expression: o.text()
+---
+╭─ subcommand ──────────────╮
+│ commit    save changes    │
+│▌checkout  switch branches │
+╰────────────────── 2/2 ↵ ──╯
