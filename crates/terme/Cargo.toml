@@ -19,6 +19,7 @@ rustix = { version = "1.1.5", features = ["termios", "process", "fs", "stdio"] }
 signal-hook = "0.4.5"
 terme-core = { path = "../terme-core" }
 terme-ui = { path = "../terme-ui" }
+unicode-width = "0.2.2"
 vt100 = "0.18.1"
 
 [dev-dependencies]

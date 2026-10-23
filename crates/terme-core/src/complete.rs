@@ -1,6 +1,7 @@
 //! Turns a [`Context`] into a ranked list of suggestions.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::context::{Context, Expect, Slot, SpecContext, Word};
 use crate::matching::{Match, MatchKind, match_description, match_name};
@@ -63,7 +64,7 @@ pub struct Env<'a> {
     pub cwd: &'a Path,
     pub home: Option<&'a Path>,
     /// Cached generator output; `None` means it hasn't run yet.
-    pub generated: &'a dyn Fn(&Generator) -> Option<Vec<String>>,
+    pub generated: &'a dyn Fn(&Generator) -> Option<Arc<Vec<String>>>,
 }
 
 /// The most entries a folder listing contributes.
@@ -380,14 +381,17 @@ fn arg_values(arg: &Arg, word: &Word, env: &Env<'_>, s: &mut Suggestions) {
     if let Some(generator) = &arg.generator {
         match (env.generated)(generator) {
             Some(values) => {
-                for value in values {
-                    if let Some(m) = match_name(&word.prefix, &value) {
-                        if m.kind <= MatchKind::Subsequence {
-                            let mut c = simple(&value, "", Kind::Generated(generator.kind.clone()), m, 60, word);
-                            c.meta.clone_from(&generator.kind);
-                            s.items.push(c);
-                        }
-                    }
+                // Huge lists (all apt packages) only make sense once filtered.
+                let limit = if word.prefix.is_empty() { MAX_PATHS } else { 2000 };
+                let matches = values
+                    .iter()
+                    .filter_map(|v| match_name(&word.prefix, v).map(|m| (v, m)))
+                    .filter(|(_, m)| m.kind <= MatchKind::Subsequence)
+                    .take(limit);
+                for (value, m) in matches {
+                    let mut c = simple(value, "", Kind::Generated(generator.kind.clone()), m, 60, word);
+                    c.meta.clone_from(&generator.kind);
+                    s.items.push(c);
                 }
             }
             None => s.pending.push(generator.clone()),
@@ -585,7 +589,7 @@ mod tests {
         fn suggest_with(
             &self,
             line_with_cursor: &str,
-            generated: &dyn Fn(&Generator) -> Option<Vec<String>>,
+            generated: &dyn Fn(&Generator) -> Option<Arc<Vec<String>>>,
         ) -> Suggestions {
             let cursor = line_with_cursor.chars().position(|c| c == '█').unwrap();
             let line = line_with_cursor.replacen('█', "", 1);
@@ -705,7 +709,7 @@ mod tests {
         let s = f.suggest("git checkout fe█");
         assert_eq!(s.pending.len(), 1);
         let s = f.suggest_with("git checkout fe█", &|_| {
-            Some(vec!["feature/login".into(), "main".into(), "feature/search".into()])
+            Some(Arc::new(vec!["feature/login".into(), "main".into(), "feature/search".into()]))
         });
         assert!(s.pending.is_empty());
         assert_eq!(displays(&s)[..2], ["feature/login", "feature/search"]);
