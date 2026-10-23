@@ -281,13 +281,14 @@ fn walk<'a>(spec: &'a Command, words: &[String], word: &Word) -> SpecContext<'a>
             }
             continue;
         }
-        if positional == 0 && !dashdash {
-            if let Some(sub) = node.find_subcommand(w) {
-                node = sub;
-                path.push(sub.name());
-                used.clear();
-                continue;
-            }
+        if positional == 0
+            && !dashdash
+            && let Some(sub) = node.find_subcommand(w)
+        {
+            node = sub;
+            path.push(sub.name());
+            used.clear();
+            continue;
         }
         positional += 1;
     }

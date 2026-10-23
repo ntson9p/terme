@@ -153,11 +153,11 @@ fn commands(word: &Word, env: &Env<'_>) -> Suggestions {
         if seen.contains(name) {
             continue;
         }
-        if let Some(m) = match_name(&word.prefix, name) {
-            if m.kind <= MatchKind::PrefixNoCase {
-                seen.insert(name.clone());
-                s.items.push(simple(name, "", Kind::Command, m, 0, word));
-            }
+        if let Some(m) = match_name(&word.prefix, name)
+            && m.kind <= MatchKind::PrefixNoCase
+        {
+            seen.insert(name.clone());
+            s.items.push(simple(name, "", Kind::Command, m, 0, word));
         }
     }
     s
@@ -235,10 +235,10 @@ fn best_name<'n>(query: &str, names: &'n [String]) -> Option<(Match, &'n str)> {
 }
 
 fn arg_label(arg: &Arg) -> String {
-    if let Some(generator) = &arg.generator {
-        if arg.template.is_none() {
-            return generator.kind.clone();
-        }
+    if let Some(generator) = &arg.generator
+        && arg.template.is_none()
+    {
+        return generator.kind.clone();
     }
     if arg.description.is_empty() {
         format!("‹{}›", arg.name)
@@ -381,10 +381,10 @@ fn cluster_additions(spec: &SpecContext<'_>, cluster: &str) -> Suggestions {
     };
     // If the last flag takes a value, the value comes next, not more flags.
     let last = cluster.chars().last().map(|c| format!("-{c}"));
-    if let Some(opt) = last.and_then(|l| spec.command.find_option(&l)) {
-        if opt.takes_value() {
-            return s;
-        }
+    if let Some(opt) = last.and_then(|l| spec.command.find_option(&l))
+        && opt.takes_value()
+    {
+        return s;
     }
     let in_cluster: Vec<&Opt> = cluster[1..]
         .chars()
@@ -562,10 +562,10 @@ fn resolve_dir(dir_value: &str, env: &Env<'_>) -> PathBuf {
     if dir_value.is_empty() {
         return env.cwd.to_path_buf();
     }
-    if let Some(rest) = dir_value.strip_prefix('~') {
-        if let Some(home) = env.home {
-            return home.join(rest.trim_start_matches('/'));
-        }
+    if let Some(rest) = dir_value.strip_prefix('~')
+        && let Some(home) = env.home
+    {
+        return home.join(rest.trim_start_matches('/'));
     }
     let p = Path::new(dir_value);
     if p.is_absolute() {
