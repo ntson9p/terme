@@ -1,0 +1,36 @@
+{
+  "names": ["tar"],
+  "description": "store, list or extract files in an archive",
+  "options": [
+    { "exclusive": ["-c", "-t", "-r", "-u"], "names": ["-x", "--extract", "--get"], "description": "extract files", "priority": 90 },
+    { "exclusive": ["-x", "-t"], "names": ["-c", "--create"], "description": "new archive", "priority": 89 },
+    { "exclusive": ["-x", "-c", "-r", "-u"], "names": ["-t", "--list"], "description": "list contents", "priority": 86 },
+    { "names": ["-f", "--file"], "description": "archive file", "priority": 85,
+      "arg": { "name": "FILE", "description": "archive to read", "template": "filepaths",
+               "extensions": [".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar.zst"] } },
+    { "exclusive": ["-j", "-J", "--zstd"], "names": ["-z", "--gzip"], "description": "gzip (.gz)", "priority": 80 },
+    { "names": ["-v", "--verbose"], "description": "list each file", "priority": 79, "repeatable": true },
+    { "names": ["-C", "--directory"], "description": "change to a folder first", "priority": 70,
+      "arg": { "name": "DIR", "description": "folder to work in", "template": "folders" } },
+    { "exclusive": ["-z", "-J", "--zstd"], "names": ["-j", "--bzip2"], "description": "bzip2 (.bz2)", "priority": 60 },
+    { "exclusive": ["-z", "-j", "--zstd"], "names": ["-J", "--xz"], "description": "xz (.xz)", "priority": 60 },
+    { "names": ["-a", "--auto-compress"], "description": "compression from the suffix", "priority": 50 },
+    { "names": ["--exclude"], "description": "leave out matching files", "priority": 50, "requires_equals": true,
+      "arg": { "name": "PATTERN", "description": "glob of files to skip" } },
+    { "names": ["-k", "--keep-old-files"], "description": "don't overwrite files", "priority": 45 },
+    { "names": ["--strip-components"], "description": "drop leading folders", "priority": 40, "requires_equals": true,
+      "arg": { "name": "N", "description": "how many leading folders to drop" } },
+    { "exclusive": ["-z", "-j", "-J"], "names": ["--zstd"], "description": "zstd (.zst)", "priority": 40 },
+    { "names": ["-p", "--preserve-permissions"], "description": "keep permissions", "priority": 30 },
+    { "exclusive": ["-x", "-t"], "names": ["-r", "--append"], "description": "add files to the end", "priority": 30 },
+    { "exclusive": ["-x", "-t"], "names": ["-u", "--update"], "description": "add only newer files", "priority": 20 },
+    { "names": ["-O", "--to-stdout"], "description": "extract to standard output", "priority": 20 },
+    { "names": ["-h", "--dereference"], "description": "follow symlinks", "priority": 20 },
+    { "names": ["--remove-files"], "description": "delete files after adding them", "priority": 15 },
+    { "names": ["-w", "--interactive"], "description": "ask before each action", "priority": 10 },
+    { "names": ["-P", "--absolute-names"], "description": "keep the leading /", "priority": 10 }
+  ],
+  "args": [
+    { "name": "FILE", "description": "files to add or extract", "optional": true, "variadic": true, "template": "filepaths" }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "names": ["apt"],
+  "description": "install and manage packages",
+  "subcommands": [
+    { "names": ["install"], "description": "install packages", "priority": 100,
+      "options": [
+        { "names": ["-y", "--yes"], "description": "don't ask", "priority": 50 },
+        { "names": ["--no-install-recommends"], "description": "skip recommended packages" },
+        { "names": ["--reinstall"], "description": "install again" },
+        { "names": ["-s", "--simulate"], "description": "show what would happen" },
+        { "names": ["-f", "--fix-broken"], "description": "repair broken dependencies" }
+      ],
+      "args": [ { "name": "package", "variadic": true,
+        "generator": { "script": ["apt-cache", "pkgnames"], "kind": "package" } } ] },
+    { "names": ["update"], "description": "refresh package lists", "priority": 99 },
+    { "names": ["upgrade"], "description": "upgrade installed packages", "priority": 98,
+      "options": [ { "names": ["-y", "--yes"], "description": "don't ask" } ] },
+    { "names": ["remove"], "description": "remove packages", "priority": 97,
+      "options": [
+        { "names": ["-y", "--yes"], "description": "don't ask" },
+        { "names": ["--purge"], "description": "delete config files too" }
+      ],
+      "args": [ { "name": "package", "variadic": true,
+        "generator": { "script": ["dpkg-query", "-W", "-f=${Package}\\n"], "kind": "installed" } } ] },
+    { "names": ["purge"], "description": "remove packages and their config", "priority": 90,
+      "args": [ { "name": "package", "variadic": true,
+        "generator": { "script": ["dpkg-query", "-W", "-f=${Package}\\n"], "kind": "installed" } } ] },
+    { "names": ["autoremove"], "description": "remove packages nobody needs", "priority": 89 },
+    { "names": ["full-upgrade"], "description": "upgrade, removing packages if needed", "priority": 80 },
+    { "names": ["search"], "description": "search package descriptions", "priority": 88 },
+    { "names": ["show"], "description": "show package details", "priority": 87,
+      "args": [ { "name": "package",
+        "generator": { "script": ["apt-cache", "pkgnames"], "kind": "package" } } ] },
+    { "names": ["list"], "description": "list packages", "priority": 86,
+      "options": [
+        { "names": ["--installed"], "description": "installed only" },
+        { "names": ["--upgradable"], "description": "upgradable only" }
+      ] },
+    { "names": ["edit-sources"], "description": "edit the package sources" }
+  ]
+}

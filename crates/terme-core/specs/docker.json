@@ -1,0 +1,186 @@
+{
+  "names": ["docker"],
+  "description": "build and run containers",
+  "options": [
+    { "names": ["-H", "--host"], "description": "daemon socket to connect to",
+      "arg": { "name": "host", "description": "e.g. unix:///var/run/docker.sock" } },
+    { "names": ["--context"], "description": "context to use",
+      "arg": { "name": "context", "generator": { "script": ["docker", "context", "ls", "--format", "{{.Name}}"], "kind": "context" } } },
+    { "names": ["-v", "--version"], "description": "show the version" }
+  ],
+  "subcommands": [
+    { "names": ["run"], "description": "start a new container", "priority": 100,
+      "options": [
+        { "names": ["-d", "--detach"], "description": "run in background", "priority": 60 },
+        { "names": ["-i", "--interactive"], "description": "keep stdin open", "priority": 55 },
+        { "names": ["-t", "--tty"], "description": "allocate a terminal", "priority": 55 },
+        { "names": ["--rm"], "description": "delete when it exits", "priority": 58 },
+        { "names": ["-p", "--publish"], "description": "publish a port", "priority": 57,
+          "arg": { "name": "host:ctr", "description": "host port:container port, e.g. 8080:80" } },
+        { "names": ["-P", "--publish-all"], "description": "publish all exposed ports", "priority": 10 },
+        { "names": ["-v", "--volume"], "description": "mount a volume", "priority": 50,
+          "arg": { "name": "src:dst", "description": "host path or volume:container path" } },
+        { "names": ["-e", "--env"], "description": "set a variable", "priority": 50,
+          "arg": { "name": "KEY=VALUE", "description": "environment variable" } },
+        { "names": ["--env-file"], "description": "variables from a file",
+          "arg": { "name": "file", "template": "filepaths" } },
+        { "names": ["--name"], "description": "name the container", "priority": 52,
+          "arg": { "name": "name", "description": "container name" } },
+        { "names": ["--network"], "description": "connect to a network",
+          "arg": { "name": "network", "generator": { "script": ["docker", "network", "ls", "--format", "{{.Name}}"], "kind": "network" } } },
+        { "names": ["-w", "--workdir"], "description": "working folder inside",
+          "arg": { "name": "dir", "description": "path inside the container" } },
+        { "names": ["--entrypoint"], "description": "override the entrypoint",
+          "arg": { "name": "command", "description": "program to run" } },
+        { "names": ["--restart"], "description": "restart policy",
+          "arg": { "name": "policy", "suggestions": [
+            { "name": "no", "description": "never restart" },
+            { "name": "always", "description": "always restart" },
+            { "name": "unless-stopped", "description": "restart unless stopped by hand" },
+            { "name": "on-failure", "description": "restart after a crash" } ] } },
+        { "names": ["-u", "--user"], "description": "user inside the container",
+          "arg": { "name": "user", "description": "name or uid[:gid]" } },
+        { "names": ["--expose"], "description": "expose a port",
+          "arg": { "name": "port", "description": "container port" } },
+        { "names": ["--platform"], "description": "target platform",
+          "arg": { "name": "platform", "suggestions": [ { "name": "linux/amd64" }, { "name": "linux/arm64" } ] } },
+        { "names": ["--pull"], "description": "when to pull the image",
+          "arg": { "name": "policy", "suggestions": [ { "name": "missing" }, { "name": "always" }, { "name": "never" } ] } },
+        { "names": ["-m", "--memory"], "description": "memory limit",
+          "arg": { "name": "bytes", "description": "e.g. 512m or 2g" } }
+      ],
+      "args": [
+        { "name": "image", "description": "image to run",
+          "generator": { "script": ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"], "kind": "image" } },
+        { "name": "command", "optional": true, "variadic": true }
+      ] },
+    { "names": ["ps"], "description": "list containers", "priority": 99,
+      "options": [
+        { "names": ["-a", "--all"], "description": "include stopped ones", "priority": 50 },
+        { "names": ["-q", "--quiet"], "description": "IDs only" },
+        { "names": ["-s", "--size"], "description": "show sizes" },
+        { "names": ["-f", "--filter"], "description": "filter the list", "arg": { "name": "filter", "description": "e.g. status=exited" } },
+        { "names": ["--format"], "description": "output template", "arg": { "name": "template", "description": "Go template" } }
+      ] },
+    { "names": ["exec"], "description": "run a command in a container", "priority": 98,
+      "options": [
+        { "names": ["-i", "--interactive"], "description": "keep stdin open", "priority": 50 },
+        { "names": ["-t", "--tty"], "description": "allocate a terminal", "priority": 50 },
+        { "names": ["-u", "--user"], "description": "run as this user", "arg": { "name": "user", "description": "name or uid" } },
+        { "names": ["-w", "--workdir"], "description": "working folder inside", "arg": { "name": "dir", "description": "path inside the container" } },
+        { "names": ["-e", "--env"], "description": "set a variable", "arg": { "name": "KEY=VALUE", "description": "environment variable" } },
+        { "names": ["-d", "--detach"], "description": "run in background" }
+      ],
+      "args": [
+        { "name": "container", "generator": { "script": ["docker", "ps", "--format", "{{.Names}}"], "kind": "container" } },
+        { "name": "command", "variadic": true }
+      ] },
+    { "names": ["logs"], "description": "show a container's logs", "priority": 97,
+      "options": [
+        { "names": ["-f", "--follow"], "description": "keep streaming", "priority": 50 },
+        { "names": ["--tail"], "description": "last lines only", "arg": { "name": "n", "description": "number of lines" } },
+        { "names": ["-t", "--timestamps"], "description": "show timestamps" },
+        { "names": ["--since"], "description": "logs after a time", "arg": { "name": "time", "description": "e.g. 10m or 2026-01-01" } }
+      ],
+      "args": [ { "name": "container", "generator": { "script": ["docker", "ps", "-a", "--format", "{{.Names}}"], "kind": "container" } } ] },
+    { "names": ["images"], "description": "list images", "priority": 96,
+      "options": [
+        { "names": ["-a", "--all"], "description": "include intermediate images" },
+        { "names": ["-q", "--quiet"], "description": "IDs only" }
+      ] },
+    { "names": ["build"], "description": "build an image", "priority": 95,
+      "options": [
+        { "names": ["-t", "--tag"], "description": "name the image", "priority": 50, "arg": { "name": "name:tag", "description": "e.g. shop:latest" } },
+        { "names": ["-f", "--file"], "description": "Dockerfile to use", "arg": { "name": "file", "template": "filepaths" } },
+        { "names": ["--no-cache"], "description": "don't use the cache" },
+        { "names": ["--build-arg"], "description": "set a build argument", "arg": { "name": "KEY=VALUE", "description": "build argument" } },
+        { "names": ["--target"], "description": "stop at a stage", "arg": { "name": "stage", "description": "build stage name" } },
+        { "names": ["--pull"], "description": "always pull base images" },
+        { "names": ["-q", "--quiet"], "description": "print only the image ID" }
+      ],
+      "args": [ { "name": "context", "description": "build folder", "template": "folders" } ] },
+    { "names": ["compose"], "description": "run multi-container apps", "priority": 94,
+      "options": [
+        { "names": ["-f", "--file"], "description": "compose file", "arg": { "name": "file", "template": "filepaths" } },
+        { "names": ["-p", "--project-name"], "description": "project name", "arg": { "name": "name", "description": "project name" } }
+      ],
+      "subcommands": [
+        { "names": ["up"], "description": "start the services", "priority": 50,
+          "options": [
+            { "names": ["-d", "--detach"], "description": "run in bg", "priority": 50 },
+            { "names": ["--build"], "description": "build first", "priority": 45 },
+            { "names": ["--wait"], "description": "wait ready", "priority": 40 },
+            { "names": ["--force-recreate"], "description": "recreate containers" },
+            { "names": ["--remove-orphans"], "description": "remove old containers" }
+          ] },
+        { "names": ["down"], "description": "stop and remove the services", "priority": 49,
+          "options": [
+            { "names": ["-v", "--volumes"], "description": "delete volumes too" },
+            { "names": ["--remove-orphans"], "description": "remove old containers" }
+          ] },
+        { "names": ["ps"], "description": "list the services' containers" },
+        { "names": ["logs"], "description": "show the services' logs",
+          "options": [ { "names": ["-f", "--follow"], "description": "keep streaming" } ] },
+        { "names": ["build"], "description": "build the services" },
+        { "names": ["exec"], "description": "run a command in a service" },
+        { "names": ["pull"], "description": "pull the services' images" },
+        { "names": ["restart"], "description": "restart the services" },
+        { "names": ["stop"], "description": "stop the services" },
+        { "names": ["start"], "description": "start stopped services" },
+        { "names": ["config"], "description": "show the resolved config" }
+      ] },
+    { "names": ["stop"], "description": "stop containers", "priority": 90,
+      "args": [ { "name": "container", "variadic": true, "generator": { "script": ["docker", "ps", "--format", "{{.Names}}"], "kind": "container" } } ] },
+    { "names": ["start"], "description": "start stopped containers", "priority": 89,
+      "args": [ { "name": "container", "variadic": true, "generator": { "script": ["docker", "ps", "-a", "--filter", "status=exited", "--format", "{{.Names}}"], "kind": "container" } } ] },
+    { "names": ["restart"], "description": "restart containers", "priority": 88,
+      "args": [ { "name": "container", "variadic": true, "generator": { "script": ["docker", "ps", "--format", "{{.Names}}"], "kind": "container" } } ] },
+    { "names": ["rm"], "description": "delete containers", "priority": 87,
+      "options": [
+        { "names": ["-f", "--force"], "description": "even if running" },
+        { "names": ["-v", "--volumes"], "description": "delete its volumes too" }
+      ],
+      "args": [ { "name": "container", "variadic": true, "generator": { "script": ["docker", "ps", "-a", "--format", "{{.Names}}"], "kind": "container" } } ] },
+    { "names": ["rmi"], "description": "delete images", "priority": 86,
+      "options": [ { "names": ["-f", "--force"], "description": "even if in use" } ],
+      "args": [ { "name": "image", "variadic": true, "generator": { "script": ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"], "kind": "image" } } ] },
+    { "names": ["pull"], "description": "download an image", "priority": 85,
+      "args": [ { "name": "image", "description": "e.g. nginx:latest" } ] },
+    { "names": ["push"], "description": "upload an image", "priority": 84,
+      "args": [ { "name": "image", "generator": { "script": ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"], "kind": "image" } } ] },
+    { "names": ["volume"], "description": "manage volumes", "priority": 70,
+      "subcommands": [
+        { "names": ["ls"], "description": "list volumes" },
+        { "names": ["create"], "description": "create a volume" },
+        { "names": ["rm"], "description": "delete volumes",
+          "args": [ { "name": "volume", "variadic": true, "generator": { "script": ["docker", "volume", "ls", "--format", "{{.Name}}"], "kind": "volume" } } ] },
+        { "names": ["inspect"], "description": "show volume details" },
+        { "names": ["prune"], "description": "delete unused volumes" }
+      ] },
+    { "names": ["network"], "description": "manage networks", "priority": 69,
+      "subcommands": [
+        { "names": ["ls"], "description": "list networks" },
+        { "names": ["create"], "description": "create a network" },
+        { "names": ["rm"], "description": "delete networks" },
+        { "names": ["inspect"], "description": "show network details" },
+        { "names": ["connect"], "description": "connect a container" },
+        { "names": ["disconnect"], "description": "disconnect a container" }
+      ] },
+    { "names": ["system"], "description": "manage Docker itself", "priority": 68,
+      "subcommands": [
+        { "names": ["prune"], "description": "delete unused data",
+          "options": [
+            { "names": ["-a", "--all"], "description": "all unused images too" },
+            { "names": ["-f", "--force"], "description": "don't ask" },
+            { "names": ["--volumes"], "description": "unused volumes too" }
+          ] },
+        { "names": ["df"], "description": "show disk usage" },
+        { "names": ["info"], "description": "show system information" }
+      ] },
+    { "names": ["inspect"], "description": "show low-level details", "priority": 60 },
+    { "names": ["cp"], "description": "copy files to or from a container", "priority": 59 },
+    { "names": ["tag"], "description": "add a name to an image", "priority": 58 },
+    { "names": ["login"], "description": "sign in to a registry", "priority": 57 },
+    { "names": ["logout"], "description": "sign out of a registry", "priority": 56 }
+  ]
+}

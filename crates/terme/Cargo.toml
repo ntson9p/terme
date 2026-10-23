@@ -1,0 +1,25 @@
+[package]
+name = "terme"
+description = "IntelliSense for the terminal you already use"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+base64 = "0.23.1"
+portable-pty = "0.9.0"
+rustix = { version = "1.1.5", features = ["termios", "process", "fs", "stdio"] }
+signal-hook = "0.4.5"
+terme-core = { path = "../terme-core" }
+terme-ui = { path = "../terme-ui" }
+vt100 = "0.18.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"

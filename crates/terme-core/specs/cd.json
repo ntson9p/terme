@@ -1,0 +1,9 @@
+{
+  "names": ["cd"],
+  "description": "change folder",
+  "options": [
+    { "names": ["-P"], "description": "resolve symlinks" },
+    { "names": ["-L"], "description": "keep symlinks in the path" }
+  ],
+  "args": [ { "name": "DIR", "description": "folder to go to", "optional": true, "template": "folders" } ]
+}

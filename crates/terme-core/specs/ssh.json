@@ -1,0 +1,40 @@
+{
+  "names": ["ssh"],
+  "description": "log in to another machine",
+  "options": [
+    { "names": ["-p"], "description": "port", "priority": 80,
+      "arg": { "name": "port", "description": "port on the remote host, e.g. 2222" } },
+    { "names": ["-i"], "description": "use this private key", "priority": 75,
+      "arg": { "name": "identity_file", "template": "filepaths" } },
+    { "names": ["-l"], "description": "user to log in as",
+      "arg": { "name": "login_name", "description": "remote user name" } },
+    { "names": ["-L"], "description": "forward a local port", "priority": 60,
+      "arg": { "name": "[bind:]port:host:hostport", "description": "e.g. 8080:localhost:80" } },
+    { "names": ["-R"], "description": "forward a remote port",
+      "arg": { "name": "[bind:]port:host:hostport", "description": "e.g. 9000:localhost:3000" } },
+    { "names": ["-D"], "description": "SOCKS proxy on a local port",
+      "arg": { "name": "port", "description": "local port" } },
+    { "names": ["-J"], "description": "jump through a host",
+      "arg": { "name": "destination", "description": "user@jumphost" } },
+    { "names": ["-A"], "description": "forward the agent" },
+    { "names": ["-N"], "description": "no command, just forward" },
+    { "names": ["-f"], "description": "go to the background" },
+    { "names": ["-t"], "description": "force a terminal" },
+    { "names": ["-T"], "description": "no terminal" },
+    { "names": ["-X"], "description": "forward X11" },
+    { "names": ["-C"], "description": "compress traffic" },
+    { "names": ["-v"], "description": "verbose (repeat for more)", "repeatable": true },
+    { "names": ["-q"], "description": "quiet" },
+    { "names": ["-o"], "description": "set a config option",
+      "arg": { "name": "option", "description": "e.g. StrictHostKeyChecking=no" } },
+    { "names": ["-F"], "description": "use another config file",
+      "arg": { "name": "configfile", "template": "filepaths" } },
+    { "names": ["-4"], "description": "IPv4 only" },
+    { "names": ["-6"], "description": "IPv6 only" }
+  ],
+  "args": [
+    { "name": "destination", "description": "[user@]host",
+      "generator": { "script": ["sh", "-c", "grep -ih '^[[:space:]]*host[[:space:]]' ~/.ssh/config 2>/dev/null | tr ' \t' '\n\n' | grep -iv '^host$' | grep -v '[*?]' | grep ."], "kind": "host" } },
+    { "name": "command", "optional": true, "variadic": true }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "names": ["ls"],
+  "description": "list folder contents",
+  "options": [
+    { "names": ["-l"], "description": "long listing", "priority": 90 },
+    { "names": ["-a", "--all"], "description": "show hidden files", "priority": 89 },
+    { "names": ["-h", "--human-readable"], "description": "sizes like 1K 234M", "priority": 85 },
+    { "names": ["-t"], "description": "newest first", "priority": 80 },
+    { "names": ["-r", "--reverse"], "description": "reverse the order", "priority": 75 },
+    { "names": ["-S"], "description": "largest first", "priority": 70 },
+    { "names": ["-R", "--recursive"], "description": "list subfolders too", "priority": 65 },
+    { "names": ["-A", "--almost-all"], "description": "hidden files, not . and .." },
+    { "names": ["-1"], "description": "one per line" },
+    { "names": ["-d", "--directory"], "description": "folders themselves, not contents" },
+    { "names": ["-F", "--classify"], "description": "mark types with / * @" },
+    { "names": ["-i", "--inode"], "description": "show inode numbers" },
+    { "names": ["-s", "--size"], "description": "show allocated size" },
+    { "names": ["-X"], "description": "sort by extension" },
+    { "names": ["--group-directories-first"], "description": "folders before files" },
+    { "names": ["--color"], "description": "colour the output", "requires_equals": true,
+      "arg": { "name": "WHEN", "suggestions": [
+        { "name": "auto", "description": "only on a terminal" },
+        { "name": "always", "description": "always" },
+        { "name": "never", "description": "never" } ] } }
+  ],
+  "args": [ { "name": "FILE", "optional": true, "variadic": true, "template": "filepaths" } ]
+}

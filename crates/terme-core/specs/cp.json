@@ -1,0 +1,21 @@
+{
+  "names": ["cp"],
+  "description": "copy files and folders",
+  "options": [
+    { "names": ["-r", "-R", "--recursive"], "description": "copy folders too", "priority": 90 },
+    { "names": ["-i", "--interactive"], "description": "ask before overwriting", "priority": 80 },
+    { "names": ["-v", "--verbose"], "description": "list what is copied", "priority": 75 },
+    { "names": ["-a", "--archive"], "description": "keep everything", "priority": 70 },
+    { "names": ["-n", "--no-clobber"], "description": "never overwrite", "priority": 60 },
+    { "names": ["-p"], "description": "keep mode, owner, times", "priority": 55 },
+    { "names": ["-u", "--update"], "description": "only when newer" },
+    { "names": ["-f", "--force"], "description": "replace unwritable files" },
+    { "names": ["-l", "--link"], "description": "hard-link instead" },
+    { "names": ["-s", "--symbolic-link"], "description": "symlink instead" },
+    { "names": ["-t", "--target-directory"], "description": "copy into this folder",
+      "arg": { "name": "DIR", "template": "folders" } },
+    { "names": ["-T", "--no-target-directory"], "description": "treat DEST as a file" },
+    { "names": ["--parents"], "description": "keep the source path" }
+  ],
+  "args": [ { "name": "SOURCE… DEST", "description": "files to copy, then where", "variadic": true, "template": "filepaths" } ]
+}

@@ -1,0 +1,17 @@
+[package]
+name = "terme-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+unicode-width = "0.2.2"
+
+[dev-dependencies]
+insta = "1.49.0"
